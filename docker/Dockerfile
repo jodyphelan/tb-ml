@@ -1,9 +1,9 @@
-FROM ubuntu:20.04
+FROM python:3.8-bullseye
 
-# RUN apt update
+RUN pip install numpy pandas joblib scikit-learn
 
-# copy startup script
+# copy the python script and the model / data files
 COPY startup.py /
-# RUN chmod +x startup.sh
+COPY *.pkl /
 
-ENTRYPOINT ["python", "./startup.sh"]
+ENTRYPOINT ["python", "./startup.py"]
