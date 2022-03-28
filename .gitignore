@@ -1,3 +1,6 @@
+test_models/*
+!test_models/*pkl
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
