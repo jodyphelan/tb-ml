@@ -1,5 +1,5 @@
-test_models/*
-!test_models/*pkl
+# skip files used to generate the test models
+test_models/*.py
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
