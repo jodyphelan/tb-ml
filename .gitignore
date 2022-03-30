@@ -1,5 +1,9 @@
-# skip files used to generate the test models
-test_models/*.py
+# files used to generate the test data and models
+test_data/*.py
+
+# exported docker images
+*.tar
+*.tar.gz
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
