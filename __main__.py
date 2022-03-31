@@ -1,8 +1,5 @@
-# %% ###################################################################
 import pandas as pd
 from tb_ml import funcs
-import subprocess
-# %% ###################################################################
 
 
 def main() -> None:
@@ -16,8 +13,8 @@ def main() -> None:
     vars = funcs.TEST_run_variant_calling_pipeline(
         'test_data/INH_ERR1035006.csv', pos)
     vars_rdy = funcs.sanitize_input_dimensions(vars, AFs)
-    docker_img_fname = '/home/julian/git/tb-ml/docker/' \
-        'RF_INH_predictor/rf-sm-predictor.docker.tar'
+    docker_img_fname = \
+        'docker/simple_RF_predictor/rf-sm-predictor.docker.tar.gz'
     res_status: bool = funcs.run_prediction_container(docker_img_fname,
                                                       vars_rdy)
     if res_status:

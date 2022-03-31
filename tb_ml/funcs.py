@@ -8,7 +8,6 @@ from typing import Iterable, Union
 import pathogenprofiler as pp
 import os
 from tqdm import tqdm
-import subprocess as sp
 
 
 def get_cli_args() -> argparse.Namespace:
@@ -25,43 +24,48 @@ def get_positions(AFs: pd.Series) -> list[int]:
 
 
 def get_genotypes(bam_file: str, ref_file: str, variants: list,
-                  subset_bam: bool = True) -> list:
+                  subset_bam: bool = True) -> pd.Series:
     """
-    1. Writes a dummy vcf with the variants 
+    1. Writes a dummy vcf with the variants
     2. Subsets the bam file to only include overlapping reads
-    3. Uses freebayes to produce calls for those specific postiions. 
+    3. Uses freebayes to produce calls for those specific postiions.
     """
     prefix = str(uuid4())
     tmp_vcf_file = f"{prefix}.vcf"
     tmp_bed_file = f"{prefix}.bed"
     tmp_bam_file = f"{prefix}.bam"
-    with open(tmp_vcf_file, "w") as O:
-        O.write("""##fileformat=VCFv4.2
-##reference=/home/jody/refgenome/MTB-h37rv_asm19595v2-eg18.fa
-##contig=<ID=Chromosome,length=4411532>
-##INFO=<ID=AF,Number=A,Type=Float,Description="Estimated allele frequency in the range (0,1]">
-#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO
-""")
+    with open(tmp_vcf_file, "w") as outfile:
+        outfile.write('##fileformat=VCFv4.2')
+        outfile.write('##reference=/home/jody/refgenome/'
+                      'MTB-h37rv_asm19595v2-eg18.fa')
+        outfile.write('##contig=<ID=Chromosome,length=4411532>')
+        outfile.write('##INFO=<ID=AF,Number=A,Type=Float,Description='
+                      '"Estimated allele frequency in the range (0,1]">')
+        outfile.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO')
         for v in variants:
             pos, ref, alt = v.split("_")
-            O.write(f"Chromosome\t{pos}\t.\t{ref}\t{alt}\t.\t.\tAF=1\n")
+            outfile.write(f"Chromosome\t{pos}\t.\t{ref}\t{alt}\t.\t.\tAF=1\n")
     if subset_bam:
-        sp.call(f"vcf2bed < {tmp_vcf_file} > {tmp_bed_file}", shell=True)
-        sp.call(
-            f"samtools view -bML {tmp_bed_file} {bam_file} > {tmp_bam_file}", shell=True)
+        subprocess.run(
+            f"vcf2bed < {tmp_vcf_file} > {tmp_bed_file}", shell=True)
+        subprocess.run(
+            f"samtools view -bML {tmp_bed_file} {bam_file} > {tmp_bam_file}",
+            shell=True)
         bam_file = tmp_bam_file
-    rows = []
-    for l in tqdm(sp.Popen(
-        f"freebayes -f {ref_file} {bam_file} --variant-input {tmp_vcf_file} --only-use-input-alleles  "
+    VC_result = subprocess.run(
+        f"freebayes -f {ref_file} {bam_file} --variant-input {tmp_vcf_file} "
+        "--only-use-input-alleles  "
         f"| bcftools norm -f {ref_file} -m - "
-        "| bcftools query -f '%POS\t%REF\t%ALT\t[%GT\t%DP]\n'",
-            shell=True, stdout=sp.PIPE).stdout, total=len(variants)):
-        row = l.decode().strip().split()
-        varID = "_".join(row[:3])
-        rows.append((varID, row[3], row[4]))
+        "| bcftools query -f '%POS\_%REF\_%ALT\t[%GT\t%DP]\n'",
+        shell=True, capture_output=True, text=True).stdout.strip()
+    vars = pd.Series(VC_result.split('\n')).str.split('\t', expand=True)
+    vars.columns = ['varID', 'GT', 'DP']
+    vars = vars.set_index('varID')
+    vars['GT'] = vars['GT'].apply(lambda x: int(x.split('/')[0]) if
+                                  x != '.' else pd.NA)
     for f in glob(f"{prefix}*"):
         os.remove(f)
-    return rows
+    return vars
 
 
 def run_variant_calling_pipeline(
@@ -111,7 +115,7 @@ def TEST_run_variant_calling_pipeline(mock_vars_fname: str,
 def sanitize_input_dimensions(vars: pd.Series, AFs: pd.Series) -> pd.Series:
     """
     Accepts two Series with indices in the form of `POS_REF_ALT`. Returns a
-    new Series safe for passing to the prediction model (i.e. with variants
+    new Series safe for passing to the prediction model(i.e. with variants
     not used by the model removed and with AF values for missing variants).
     """
     keep = list(set(vars.index).intersection(AFs.index))
