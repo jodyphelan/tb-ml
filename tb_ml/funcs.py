@@ -25,7 +25,8 @@ def get_positions(AFs: pd.Series) -> list[int]:
 
 
 def get_genotypes(bam_file: str, ref_file: str, AFs: pd.Series,
-                  subset_bam: bool = True, DP_threshold: int = 10) -> pd.Series:
+                  subset_bam: bool = True, DP_threshold: int = 10
+                  ) -> pd.Series:
     """
     1. Writes a dummy vcf with the variants
     2. Subsets the bam file to only include overlapping reads
@@ -67,10 +68,10 @@ def get_genotypes(bam_file: str, ref_file: str, AFs: pd.Series,
     variants.columns = ['varID', 'GT', 'DP']
     variants = variants.set_index('varID')
     variants['GT'] = variants['GT'].apply(lambda x: x[0])
-    # declare variants with DP < threshold as non-calls and replace all 
+    # declare variants with DP < threshold as non-calls and replace all
     # noncalls with the corresponding AF values
-    noncalls_idx = [i for i, row in variants.iterrows() if 
-        row['GT'] == '.' or row['DP'] == '.' or int(row['DP']) < DP_threshold]
+    noncalls_idx = [i for i, row in variants.iterrows() if row['GT'] == '.' or
+                    row['DP'] == '.' or int(row['DP']) < DP_threshold]
     variants.loc[noncalls_idx, 'GT'] = AFs[noncalls_idx]
     # add the allele frequencies for variants not found in the variant
     # calling pipeline to ensure matching dimensions for the prediction model

@@ -1,3 +1,9 @@
+TODO:
+*) setup packaging so that `__main__.py` is called with `tb-ml` from the command line after installing
+*) dockerise variant calling
+*) argparse
+
+general overview:
 we need 2 files from the user:
 *) a CSV file with variant IDs and means in the training data as the two columns
 *) an exported Docker image (i.e. .tar file)

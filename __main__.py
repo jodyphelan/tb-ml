@@ -17,8 +17,8 @@ def main() -> None:
     variants = funcs.get_genotypes(bam_fname, ref_fname, AFs)
     docker_img_fname = \
         'docker/simple_RF_predictor/rf-sm-predictor.docker.tar.gz'
-    resistance_status: bool = funcs.run_prediction_container(docker_img_fname,
-                                                             variants)
+    resistance_status: bool = funcs.run_prediction_container(
+        docker_img_fname, variants)
     if resistance_status:
         print('resistant')
     else:
