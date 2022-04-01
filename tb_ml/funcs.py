@@ -66,15 +66,14 @@ def get_genotypes(bam_file: str, ref_file: str, AFs: pd.Series,
     variants = pd.Series(VC_result.split('\n')).str.split('\t', expand=True)
     variants.columns = ['varID', 'GT', 'DP']
     variants = variants.set_index('varID')
-    variants['GT'] = variants['GT'].apply(
-        lambda x: x.split('/')[0] if x != '.' else x)
-    variants = variants.replace('.', np.nan).astype(float)
-    # declare variants with DP < threshold as non-calls and replace them with
-    # the corresponding AF values
-    noncalls_idx = variants.eval('DP < @DP_threshold').index
+    variants['GT'] = variants['GT'].apply(lambda x: x[0])
+    # declare variants with DP < threshold as non-calls and replace all 
+    # noncalls with the corresponding AF values
+    noncalls_idx = [i for i, row in variants.iterrows() if 
+        row['GT'] == '.' or row['DP'] == '.' or int(row['DP']) < DP_threshold]
     variants.loc[noncalls_idx, 'GT'] = AFs[noncalls_idx]
     # add the allele frequencies for variants not found in the variant
-    # calling pipeline to ensure matching dimensions for the prediction
+    # calling pipeline to ensure matching dimensions for the prediction model
     variants = pd.concat((variants['GT'], AFs[[x for x in AFs.index if x
                                                not in variants.index]]))
     # make sure the order is as expected by the model
@@ -83,16 +82,6 @@ def get_genotypes(bam_file: str, ref_file: str, AFs: pd.Series,
     for f in glob(f"{prefix}*"):
         os.remove(f)
     return variants
-
-
-def TEST_run_variant_calling_pipeline(mock_vars_fname: str,
-                                      pos: Iterable[int]) -> pd.Series:
-    """
-    Runs the variant calling pipeline on the raw reads of the sample using a
-    vector of positions.
-    """
-    vars = pd.read_csv(mock_vars_fname, index_col=0).squeeze()
-    return vars
 
 
 def run_prediction_container(pred_container_tar_path: str,

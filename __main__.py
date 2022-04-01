@@ -1,5 +1,4 @@
 import pandas as pd
-import numpy as np
 from tb_ml import funcs
 
 
@@ -26,5 +25,5 @@ def main() -> None:
         print('not resistant')
 
 
-if __name__ == 'main':
+if __name__ == '__main__':
     main()
