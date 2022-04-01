@@ -11,9 +11,6 @@ def main() -> None:
     ref_fname = '/home/julian/git/tb-ml/test_data/MTB-h37rv_asm19595v2-eg18.fa'
 
     AFs: pd.Series = pd.read_csv(af_fname, index_col=0).squeeze()
-    pos: list[int] = tb_ml.get_positions(AFs)
-    #     'test_data/INH_ERR1035006.csv', pos)
-    # vars = get_genotypes()
     variants = tb_ml.get_genotypes(bam_fname, ref_fname, AFs)
     docker_img_fname = ('/home/julian/git/tb-ml/docker/simple_RF_predictor/'
                         'rf-sm-predictor.docker.tar.gz')

@@ -1,14 +1,9 @@
 from glob import glob
 from uuid import uuid4
-from xml.etree.ElementTree import Comment
-import numpy as np
 import pandas as pd
 import subprocess
 import argparse
-from typing import Iterable, Union
-import pathogenprofiler as pp
 import os
-from tqdm import tqdm
 
 
 def get_cli_args() -> argparse.Namespace:
@@ -38,13 +33,13 @@ def get_genotypes(bam_file: str, ref_file: str, AFs: pd.Series,
     tmp_bam_file = f"{prefix}.bam"
     # write the dummy VCF
     with open(tmp_vcf_file, "w") as outfile:
-        outfile.write('##fileformat=VCFv4.2')
+        outfile.write('##fileformat=VCFv4.2\n')
         outfile.write('##reference=/home/jody/refgenome/'
-                      'MTB-h37rv_asm19595v2-eg18.fa')
-        outfile.write('##contig=<ID=Chromosome,length=4411532>')
+                      'MTB-h37rv_asm19595v2-eg18.fa\n')
+        outfile.write('##contig=<ID=Chromosome,length=4411532>\n')
         outfile.write('##INFO=<ID=AF,Number=A,Type=Float,Description='
-                      '"Estimated allele frequency in the range (0,1]">')
-        outfile.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO')
+                      '"Estimated allele frequency in the range (0,1]">\n')
+        outfile.write('#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n')
         for var in AFs.index:
             pos, ref, alt = var.split("_")
             outfile.write(f"Chromosome\t{pos}\t.\t{ref}\t{alt}\t.\t.\tAF=1\n")
@@ -61,7 +56,7 @@ def get_genotypes(bam_file: str, ref_file: str, AFs: pd.Series,
         f"freebayes -f {ref_file} {bam_file} --variant-input {tmp_vcf_file} "
         "--only-use-input-alleles  "
         f"| bcftools norm -f {ref_file} -m - "
-        "| bcftools query -f '%POS\_%REF\_%ALT\t[%GT\t%DP]\n'",
+        r"| bcftools query -f '%POS\_%REF\_%ALT\t[%GT\t%DP]\n'",
         shell=True, capture_output=True, text=True).stdout.strip()
     # extract the variants and bring into a suitable form
     variants = pd.Series(VC_result.split('\n')).str.split('\t', expand=True)
@@ -87,6 +82,7 @@ def get_genotypes(bam_file: str, ref_file: str, AFs: pd.Series,
 
 def run_prediction_container(pred_container_tar_path: str,
                              vars: pd.Series) -> bool:
+    print('bla')
     # get the image tag first
     p = subprocess.run(['docker', 'load', '-i', pred_container_tar_path],
                        capture_output=True, text=True)
