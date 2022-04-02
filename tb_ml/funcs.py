@@ -82,7 +82,6 @@ def get_genotypes(bam_file: str, ref_file: str, AFs: pd.Series,
 
 def run_prediction_container(pred_container_tar_path: str,
                              vars: pd.Series) -> bool:
-    print('bla')
     # get the image tag first
     p = subprocess.run(['docker', 'load', '-i', pred_container_tar_path],
                        capture_output=True, text=True)

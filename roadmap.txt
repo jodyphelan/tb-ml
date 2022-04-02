@@ -1,5 +1,6 @@
 TODO:
 *) dockerise variant calling
+    --> decide whether the variants should be sanitised within the VC pipeline container or within the main script
 *) argparse
 
 general overview:
