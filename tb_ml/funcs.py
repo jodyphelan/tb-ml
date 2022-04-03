@@ -6,8 +6,6 @@ import subprocess
 import argparse
 import os
 
-from pyrsistent import b
-
 
 def get_cli_args() -> argparse.Namespace:
     pass
@@ -110,21 +108,24 @@ def load_container(container_tar_path: str) -> str:
 
 
 def run_VC_container(
-    VC_container_tar_path: str, bam_file: str, af_file: str
+    VC_container_tar_path: str,
+    bam_file: str,
+    af_file: str,
+    DP_threshold: int = 10,
 ) -> pd.Series:
     # load the container
     img_name = load_container(VC_container_tar_path)
     # run the container
-    af_path = af_file if os.path.isabs(af_file) else f'{os.getcwd()}/{af_file}'    
-    bam_path = bam_file if os.path.isabs(bam_file) else f'{os.getcwd()}/{bam_file}'    
+    af_path = af_file if os.path.isabs(af_file) else f"{os.getcwd()}/{af_file}"
+    bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
     p = subprocess.run(
         [
             "docker",
             "run",
             "--mount",
-            f"type=bind,source={af_file},target=/data/AFs.csv",
+            f"type=bind,source={af_path},target=/data/AFs.csv",
             "--mount",
-            f"type=bind,source={bam_file},target=/data/aligned_reads",
+            f"type=bind,source={bam_path},target=/data/aligned_reads",
             img_name,
         ],
         capture_output=True,
@@ -140,26 +141,24 @@ def run_VC_container(
     variants = variants.set_index("varID")
     variants["GT"] = variants["GT"].apply(lambda x: x[0])
     variants = variants.replace(".", np.nan).astype(float)
-    return variants
+    # declare variants with DP < threshold as non-calls
+    variants.loc[variants["DP"] < DP_threshold, "GT"] = np.nan
+    return variants["GT"]
 
 
-def sanitise_variants(
-    variants: pd.Series, AFs: pd.Series, DP_threshold: int = 10
-) -> pd.Series:
+def sanitise_variants(variants: pd.Series, AFs: pd.Series) -> pd.Series:
     new_vars = variants.copy()
-    # declare variants with DP < threshold as non-calls and replace all
-    # noncalls with the corresponding AF values
-    new_vars.loc[(new_vars["DP"] < DP_threshold) | new_vars["DP"].isna(), "GT"] = np.nan
-    new_vars["GT"].fillna(AFs, inplace=True)
+    # replace noncalls with the corresponding AF values
+    new_vars.fillna(AFs, inplace=True)
     # add the allele frequencies for variants not found in the variant
     # calling pipeline to ensure matching dimensions for the prediction model
-    new_vars = pd.concat((new_vars["GT"], AFs[AFs.index.difference(new_vars.index)]))
+    new_vars = pd.concat((new_vars, AFs[AFs.index.difference(new_vars.index)]))
     # make sure the order is as expected by the model
     new_vars = new_vars[AFs.index]
     return new_vars
 
 
-def run_prediction_container(pred_container_tar_path: str, vars: pd.Series) -> bool:
+def run_prediction_container(pred_container_tar_path: str, variants: pd.Series) -> bool:
     # load the container
     img_name = load_container(pred_container_tar_path)
     # run the container to get the prediction
@@ -167,7 +166,7 @@ def run_prediction_container(pred_container_tar_path: str, vars: pd.Series) -> b
         ["docker", "run", "-i", img_name],
         capture_output=True,
         text=True,
-        input=vars.to_csv(),
+        input=variants.to_csv(),
     )
     if p.returncode:
         print(f"ERROR predicting resistance status with '{pred_container_tar_path}':")

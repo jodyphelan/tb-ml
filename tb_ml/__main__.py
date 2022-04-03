@@ -8,7 +8,6 @@ def main() -> None:
     """
     af_fname = "/home/julsy/git/tb-ml/test_data/SM_training_AF.csv"
     bam_fname = "/home/julsy/git/tb-ml/test_data/test.cram"
-    ref_fname = "/home/julsy/git/tb-ml/test_data/MTB-h37rv_asm19595v2-eg18.fa"
 
     AFs: pd.Series = pd.read_csv(af_fname, index_col=0).squeeze()
     variants = tb_ml.run_VC_container(
