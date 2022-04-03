@@ -6,11 +6,12 @@ RUN conda install -c bioconda -c conda-forge -y \
     bcftools=1.15 \
     samtools=1.14
 
-RUN mkdir $HOME/internal_data
-WORKDIR $HOME/internal_data
+RUN mkdir /data
+WORKDIR /data
 
 # copy refgenome header for dummy VCF
 COPY MTB-h37rv_asm19595v2-eg18.fa ./refgenome.fa
+RUN samtools faidx refgenome.fa
 COPY vcf_header.txt .
 
 # copy entrypoint script
