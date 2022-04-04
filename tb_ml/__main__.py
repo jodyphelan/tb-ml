@@ -6,23 +6,17 @@ def main() -> None:
     """
     Test what we got so far using hardcoded filenames.
     """
-    af_fname = "/home/julsy/git/tb-ml/test_data/SM_training_AF.csv"
-    bam_fname = "/home/julsy/git/tb-ml/test_data/test.cram"
+    # process CLI args
+    # bam_fname, pred_cont, vc_cont = tb_ml.get_cli_args()
+    bam_file, af_file, vc_container, pred_container = tb_ml.dev_test_args()
 
-    AFs: pd.Series = pd.read_csv(af_fname, index_col=0).squeeze()
-    variants = tb_ml.run_VC_container(
-        "/home/julsy/git/tb-ml/docker/freebayes_VC_pipeline/VC_container.tar.gz",
-        bam_fname,
-        af_fname,
-    )
-    variants = tb_ml.sanitise_variants(variants, AFs)
-    pred_container_tar_fname = (
-        "/home/julsy/git/tb-ml/docker/simple_RF_predictor/"
-        "rf-sm-predictor.docker.tar.gz"
-    )
-    resistance_status: bool = tb_ml.run_prediction_container(
-        pred_container_tar_fname, variants
-    )
+    AFs: pd.Series = pd.read_csv(af_file, index_col=0).squeeze()
+    # run VC pipeline
+    variants = tb_ml.run_VC_container(vc_container, bam_file, af_file)
+    # process variants to ensure proper dimensions for the prediction model
+    variants = tb_ml.process_variants(variants, AFs)
+    # predict
+    resistance_status: bool = tb_ml.run_prediction_container(pred_container, variants)
     if resistance_status:
         print("resistant")
     else:
