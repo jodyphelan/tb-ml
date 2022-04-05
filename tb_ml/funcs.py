@@ -76,7 +76,6 @@ def run_VC_container(
     # run the container (the bind volume needs absolute paths)
     af_path = af_file if os.path.isabs(af_file) else f"{os.getcwd()}/{af_file}"
     bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
-    bam_fname = os.path.basename(bam_path)
     p = subprocess.run(
         [
             "docker",
@@ -84,9 +83,8 @@ def run_VC_container(
             "--mount",
             f"type=bind,source={af_path},target=/data/AFs.csv",
             "--mount",
-            f"type=bind,source={bam_path},target=/data/{bam_fname}",
+            f"type=bind,source={bam_path},target=/data/aligned_reads",
             VC_container_img_name,
-            bam_fname,
         ],
         capture_output=True,
         text=True,

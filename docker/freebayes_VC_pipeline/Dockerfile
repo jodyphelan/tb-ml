@@ -2,7 +2,8 @@ FROM continuumio/miniconda3:latest
 
 RUN conda install -c bioconda -c conda-forge -y \
     freebayes=1.3.6 \
-    bcftools=1.15
+    bcftools=1.15 \
+    samtools=1.14
 
 RUN mkdir /data
 WORKDIR /data
