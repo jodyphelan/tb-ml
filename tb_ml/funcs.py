@@ -47,9 +47,10 @@ def dev_test_args():
     path = f"{pathlib.Path.home()}/git/tb-ml/"
     bam_file = f"{path}/test_data/test.cram"
     af_file = f"{path}/test_data/SM_training_AF.csv"
-    vc_container = 'vc-test'
-    pred_container = 'inh-rf-predictor'
+    vc_container = "vc-test"
+    pred_container = "rf-sm-predictor"
     return bam_file, af_file, vc_container, pred_container
+
 
 def get_positions(
     AFs: pd.Series,
@@ -75,6 +76,7 @@ def run_VC_container(
     # run the container (the bind volume needs absolute paths)
     af_path = af_file if os.path.isabs(af_file) else f"{os.getcwd()}/{af_file}"
     bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
+    bam_fname = os.path.basename(bam_path)
     p = subprocess.run(
         [
             "docker",
@@ -82,8 +84,9 @@ def run_VC_container(
             "--mount",
             f"type=bind,source={af_path},target=/data/AFs.csv",
             "--mount",
-            f"type=bind,source={bam_path},target=/data/aligned_reads",
+            f"type=bind,source={bam_path},target=/data/{bam_fname}",
             VC_container_img_name,
+            bam_fname,
         ],
         capture_output=True,
         text=True,

@@ -12,9 +12,9 @@ def main() -> None:
 
     AFs: pd.Series = pd.read_csv(af_file, index_col=0).squeeze()
     # run VC pipeline
-    variants = tb_ml.run_VC_container(vc_container, bam_file, af_file)
+    variants: pd.Series = tb_ml.run_VC_container(vc_container, bam_file, af_file)
     # process variants to ensure proper dimensions for the prediction model
-    variants = tb_ml.process_variants(variants, AFs)
+    variants: pd.Series = tb_ml.process_variants(variants, AFs)
     # predict
     resistance_status: bool = tb_ml.run_prediction_container(pred_container, variants)
     if resistance_status:
