@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 import subprocess
 import argparse
+import io
 import os
 
 
@@ -22,18 +23,19 @@ def get_cli_args() -> tuple[str, str, str]:
         metavar="FILE",
     )
     parser.add_argument(
+        "-v",
+        "--variant-calling-container",
+        type=str,
+        required=True,
+        help="Name of the Docker image to use for variant-calling [required]",
+        metavar="STR",
+    )
+    parser.add_argument(
         "-p",
         "--prediction-container",
         type=str,
         required=True,
         help="Name of the Docker image to use for prediction [required]",
-        metavar="STR",
-    )
-    parser.add_argument(
-        "-vc",
-        "--variant-calling-container",
-        type=str,
-        help="Name of the Docker image to use for variant-calling",
         metavar="STR",
     )
 
@@ -46,57 +48,49 @@ def dev_test_args():
 
     path = f"{pathlib.Path.home()}/git/tb-ml/"
     bam_file = f"{path}/test_data/test.cram"
-    af_file = f"{path}/test_data/SM_training_AF.csv"
     vc_container = "vc-test"
     pred_container = "rf-sm-predictor"
-    return bam_file, af_file, vc_container, pred_container
-
-
-def get_positions(
-    AFs: pd.Series,
-) -> list[int]:
-    """
-    Extracts the genomic positions of interest from the AF series; assumes
-    the index entries to have the format: 'POS_REF_ALT'.
-    """
-    pos = [int(x.split("_")[0]) for x in AFs.index]
-    return pos
+    return bam_file, vc_container, pred_container
 
 
 def run_VC_container(
     VC_container_img_name: str,
     bam_file: str,
-    af_file: str,
+    target_vars: pd.Series,
     DP_threshold: int = 10,
 ) -> pd.Series:
     """
     Run a docker container containing a variant-calling pipeline and return the found
-    variants in a `pd.Series` with AF values replacing non-calls.
+    variants in a `pd.Series`. The container expects the target variants in the format
+    'POS,REF,ALT' in STDIN in order to make sure that they are covered in the results.
     """
+    # bring the target variants into the right format
+    target_vars_str = target_vars.reset_index()[["POS", "REF", "ALT"]].to_csv(
+        header=False, index=False
+    )
     # run the container (the bind volume needs absolute paths)
-    af_path = af_file if os.path.isabs(af_file) else f"{os.getcwd()}/{af_file}"
     bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
     p = subprocess.run(
         [
             "docker",
             "run",
-            "--mount",
-            f"type=bind,source={af_path},target=/data/AFs.csv",
+            "-i",
             "--mount",
             f"type=bind,source={bam_path},target=/data/aligned_reads",
             VC_container_img_name,
         ],
         capture_output=True,
         text=True,
+        input=target_vars_str,
     )
     if p.returncode:
         print(f"ERROR running variant-calling pipeline with '{VC_container_img_name}':")
         print(p.stderr)
         exit(1)
     # reformat the result
-    variants = pd.Series(p.stdout.strip().split("\n")).str.split("\t", expand=True)
-    variants.columns = ["varID", "GT", "DP"]
-    variants = variants.set_index("varID")
+    variants = pd.read_csv(io.StringIO(p.stdout), header=None)
+    variants.columns = ["POS", "REF", "ALT", "GT", "DP"]
+    variants = variants.set_index(["POS", "REF", "ALT"])
     variants["GT"] = variants["GT"].apply(lambda x: x[0])
     variants = variants.replace(".", np.nan).astype(float)
     # declare variants with DP < threshold as non-calls
@@ -123,6 +117,29 @@ def process_variants(
     return new_vars
 
 
+def get_target_vars_from_prediction_container(
+    pred_container_img_name: str,
+) -> pd.Series:
+    """
+    Run the prediction container with "get_AFs" as argument in order to get the allele
+    frequencies of the training dataset. These can then be used for targeted variant
+    calling.
+    """
+    p = subprocess.run(
+        ["docker", "run", pred_container_img_name, "get_target_vars"],
+        capture_output=True,
+        text=True,
+    )
+    if p.returncode:
+        print(f"ERROR extracting allele frequencies from '{pred_container_img_name}':")
+        print(p.stderr)
+        exit(1)
+    target_vars = (
+        pd.read_csv(io.StringIO(p.stdout)).set_index(["POS", "REF", "ALT"]).squeeze()
+    )
+    return target_vars
+
+
 def run_prediction_container(
     pred_container_img_name: str,
     variants: pd.Series,
@@ -133,7 +150,7 @@ def run_prediction_container(
     """
     # run the container to get the prediction
     p = subprocess.run(
-        ["docker", "run", "-i", pred_container_img_name],
+        ["docker", "run", "-i", pred_container_img_name, "predict"],
         capture_output=True,
         text=True,
         input=variants.to_csv(),
@@ -142,4 +159,4 @@ def run_prediction_container(
         print(f"ERROR predicting resistance status with '{pred_container_img_name}':")
         print(p.stderr)
         exit(1)
-    return bool(p.stdout)
+    return bool(int(p.stdout.strip()))
