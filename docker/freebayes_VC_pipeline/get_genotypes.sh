@@ -11,7 +11,7 @@ sed '1d' "$af_fname" | tr '_' ',' | awk -F',' \
     sort -k2,2 -n >> vars.vcf
 
 # now run freebayes and format the output
-time freebayes -f refgenome.fa "$bam_fname" \
+freebayes -f refgenome.fa "$bam_fname" \
     --variant-input vars.vcf \
     --only-use-input-alleles |
     bcftools norm -f refgenome.fa -m - |

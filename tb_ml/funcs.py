@@ -7,11 +7,54 @@ import argparse
 import os
 
 
-def get_cli_args() -> argparse.Namespace:
-    pass
+def get_cli_args() -> tuple[str, str, str]:
+    parser = argparse.ArgumentParser(
+        description="""
+        TB-ML: A framework for comparing AMR prediction in M. tuberculosis.
+        """
+    )
+    parser.add_argument(
+        "-b",
+        "--bam",
+        type=str,
+        required=True,
+        help="Aligned reads for a single sample [required]",
+        metavar="FILE",
+    )
+    parser.add_argument(
+        "-p",
+        "--prediction-container",
+        type=str,
+        required=True,
+        help="Name of the Docker image to use for prediction [required]",
+        metavar="STR",
+    )
+    parser.add_argument(
+        "-vc",
+        "--variant-calling-container",
+        type=str,
+        help="Name of the Docker image to use for variant-calling",
+        metavar="STR",
+    )
+
+    args = parser.parse_args()
+    return args.bam, args.prediction_container, args.variant_calling_container
 
 
-def get_positions(AFs: pd.Series) -> list[int]:
+def dev_test_args():
+    import pathlib
+
+    path = f"{pathlib.Path.home()}/git/tb-ml/"
+    bam_file = f"{path}/test_data/test.cram"
+    af_file = f"{path}/test_data/SM_training_AF.csv"
+    vc_container = "vc-test"
+    pred_container = "rf-sm-predictor"
+    return bam_file, af_file, vc_container, pred_container
+
+
+def get_positions(
+    AFs: pd.Series,
+) -> list[int]:
     """
     Extracts the genomic positions of interest from the AF series; assumes
     the index entries to have the format: 'POS_REF_ALT'.
@@ -20,104 +63,20 @@ def get_positions(AFs: pd.Series) -> list[int]:
     return pos
 
 
-def get_genotypes(
-    bam_file: str,
-    ref_file: str,
-    AFs: pd.Series,
-    subset_bam: bool = True,
-    DP_threshold: int = 10,
-) -> pd.Series:
-    """
-    1. Writes a dummy vcf with the variants
-    2. Subsets the bam file to only include overlapping reads
-    3. Uses freebayes to produce calls for those specific positions.
-    """
-    prefix = str(uuid4())
-    tmp_vcf_file = f"{prefix}.vcf"
-    tmp_bed_file = f"{prefix}.bed"
-    tmp_bam_file = f"{prefix}.bam"
-    # write the dummy VCF
-    with open(tmp_vcf_file, "w") as outfile:
-        outfile.write("##fileformat=VCFv4.2\n")
-        outfile.write(
-            "##reference=/home/jody/refgenome/" "MTB-h37rv_asm19595v2-eg18.fa\n"
-        )
-        outfile.write("##contig=<ID=Chromosome,length=4411532>\n")
-        outfile.write(
-            "##INFO=<ID=AF,Number=A,Type=Float,Description="
-            '"Estimated allele frequency in the range (0,1]">\n'
-        )
-        outfile.write("#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\n")
-        for var in AFs.index:
-            pos, ref, alt = var.split("_")
-            outfile.write(f"Chromosome\t{pos}\t.\t{ref}\t{alt}\t.\t.\tAF=1\n")
-    if subset_bam:
-        # extract aligned reads overlapping with the variants of interest
-        subprocess.run(f"vcf2bed < {tmp_vcf_file} > {tmp_bed_file}", shell=True)
-        subprocess.run(
-            f"samtools view -bML {tmp_bed_file} {bam_file} > {tmp_bam_file}", shell=True
-        )
-        bam_file = tmp_bam_file
-    # variant calling with freebayes and output formateed with bcftools
-    VC_result = subprocess.run(
-        f"freebayes -f {ref_file} {bam_file} --variant-input {tmp_vcf_file} "
-        "--only-use-input-alleles  "
-        f"| bcftools norm -f {ref_file} -m - "
-        r"| bcftools query -f '%POS\_%REF\_%ALT\t[%GT\t%DP]\n'",
-        shell=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    # extract the variants and bring into a suitable form
-    variants = pd.Series(VC_result.split("\n")).str.split("\t", expand=True)
-    variants.columns = ["varID", "GT", "DP"]
-    variants = variants.set_index("varID")
-    variants["GT"] = variants["GT"].apply(lambda x: x[0])
-    # declare variants with DP < threshold as non-calls and replace all
-    # noncalls with the corresponding AF values
-    noncalls_idx = [
-        i
-        for i, row in variants.iterrows()
-        if row["GT"] == "." or row["DP"] == "." or int(row["DP"]) < DP_threshold
-    ]
-    variants.loc[noncalls_idx, "GT"] = AFs[noncalls_idx]
-    # add the allele frequencies for variants not found in the variant
-    # calling pipeline to ensure matching dimensions for the prediction model
-    variants = pd.concat(
-        (variants["GT"], AFs[[x for x in AFs.index if x not in variants.index]])
-    )
-    # make sure the order is as expected by the model
-    variants = variants[AFs.index]
-    # clean up temporary files
-    for f in glob(f"{prefix}*"):
-        os.remove(f)
-    return variants
-
-
-def load_container(container_tar_path: str) -> str:
-    # load the container and return name of the generated image
-    p = subprocess.run(
-        ["docker", "load", "-i", container_tar_path], capture_output=True, text=True
-    )
-    if p.returncode:
-        print(f"ERROR loading docker image '{container_tar_path}':")
-        print(p.stderr)
-        exit(1)
-    img_name = p.stdout.split("Loaded image: ")[1].strip()
-    return img_name
-
-
 def run_VC_container(
-    VC_container_tar_path: str,
+    VC_container_img_name: str,
     bam_file: str,
     af_file: str,
     DP_threshold: int = 10,
 ) -> pd.Series:
-    # load the container
-    img_name = load_container(VC_container_tar_path)
-    # run the container
+    """
+    Run a docker container containing a variant-calling pipeline and return the found
+    variants in a `pd.Series` with AF values replacing non-calls.
+    """
+    # run the container (the bind volume needs absolute paths)
     af_path = af_file if os.path.isabs(af_file) else f"{os.getcwd()}/{af_file}"
     bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
+    bam_fname = os.path.basename(bam_path)
     p = subprocess.run(
         [
             "docker",
@@ -125,14 +84,15 @@ def run_VC_container(
             "--mount",
             f"type=bind,source={af_path},target=/data/AFs.csv",
             "--mount",
-            f"type=bind,source={bam_path},target=/data/aligned_reads",
-            img_name,
+            f"type=bind,source={bam_path},target=/data/{bam_fname}",
+            VC_container_img_name,
+            bam_fname,
         ],
         capture_output=True,
         text=True,
     )
     if p.returncode:
-        print(f"ERROR running variant-calling pipeline with '{VC_container_tar_path}':")
+        print(f"ERROR running variant-calling pipeline with '{VC_container_img_name}':")
         print(p.stderr)
         exit(1)
     # reformat the result
@@ -146,7 +106,14 @@ def run_VC_container(
     return variants["GT"]
 
 
-def sanitise_variants(variants: pd.Series, AFs: pd.Series) -> pd.Series:
+def process_variants(
+    variants: pd.Series,
+    AFs: pd.Series,
+) -> pd.Series:
+    """
+    Makes sure `variants` and `AFs` have the same dimensions by dropping entries not
+    present in `AFs` and using values from `AFs` for entries missing in `variants`.
+    """
     new_vars = variants.copy()
     # replace noncalls with the corresponding AF values
     new_vars.fillna(AFs, inplace=True)
@@ -158,18 +125,23 @@ def sanitise_variants(variants: pd.Series, AFs: pd.Series) -> pd.Series:
     return new_vars
 
 
-def run_prediction_container(pred_container_tar_path: str, variants: pd.Series) -> bool:
-    # load the container
-    img_name = load_container(pred_container_tar_path)
+def run_prediction_container(
+    pred_container_img_name: str,
+    variants: pd.Series,
+) -> bool:
+    """
+    Run a docker container containing a model for predicting AMR resistance from a
+    `pd.Series` of genotypes.
+    """
     # run the container to get the prediction
     p = subprocess.run(
-        ["docker", "run", "-i", img_name],
+        ["docker", "run", "-i", pred_container_img_name],
         capture_output=True,
         text=True,
         input=variants.to_csv(),
     )
     if p.returncode:
-        print(f"ERROR predicting resistance status with '{pred_container_tar_path}':")
+        print(f"ERROR predicting resistance status with '{pred_container_img_name}':")
         print(p.stderr)
         exit(1)
     return bool(p.stdout)
