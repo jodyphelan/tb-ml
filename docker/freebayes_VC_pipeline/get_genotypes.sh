@@ -14,7 +14,11 @@ sed '1d' "$af_fname" | tr '_' ',' | awk -F',' \
     {print "Chromosome", $1-1, $1, ".", ".", $2, $3, ".", "AF=1"}' |
     sort -k2,2 -n > vars.bed
 
-echo bloack
+# extract the reads overlapping with the variants of interest
+# (index the BAM first)
+# samtools index "$bam_fname"
+# time samtools view -bML vars.bed "$bam_fname" > extracted.bam
+echo bluuxx
 # now run freebayes and format the output
 time freebayes -f refgenome.fa "$bam_fname" \
     --variant-input vars.vcf \
