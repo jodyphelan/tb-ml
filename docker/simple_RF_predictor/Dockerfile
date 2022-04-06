@@ -1,6 +1,10 @@
-FROM python:3.8-bullseye
+FROM continuumio/miniconda3:latest
 
-RUN pip install numpy pandas joblib scikit-learn
+RUN conda install -c conda-forge -y \
+    numpy=1.22.3 \
+    pandas=1.4.1 \
+    joblib=1.1.0 \
+    scikit-learn=1.0.2
 
 # copy the python script and the model / data files
 COPY script.py /

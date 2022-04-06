@@ -23,4 +23,4 @@ freebayes -f refgenome.fa extracted.bam \
     --variant-input vars.vcf \
     --only-use-input-alleles |
     bcftools norm -f refgenome.fa -m - |
-    bcftools query -f '%POS,%REF,%ALT,[%GT,%DP]\n' | head
+    bcftools query -f '%POS,%REF,%ALT,[%GT,%DP]\n'

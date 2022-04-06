@@ -2,13 +2,14 @@ from glob import glob
 from uuid import uuid4
 import pandas as pd
 import numpy as np
+from typing import Union
 import subprocess
 import argparse
 import io
 import os
 
 
-def get_cli_args() -> tuple[str, str, str]:
+def get_cli_args() -> tuple[str, str, str, Union[str, None]]:
     parser = argparse.ArgumentParser(
         description="""
         TB-ML: A framework for comparing AMR prediction in M. tuberculosis.
@@ -38,19 +39,31 @@ def get_cli_args() -> tuple[str, str, str]:
         help="Name of the Docker image to use for prediction [required]",
         metavar="STR",
     )
-
+    parser.add_argument(
+        "--variants-filename",
+        type=str,
+        help="Write the called variants to this file before prediction [optional]",
+        metavar="STR",
+    )
     args = parser.parse_args()
-    return args.bam, args.prediction_container, args.variant_calling_container
+    return (
+        args.bam,
+        args.prediction_container,
+        args.variant_calling_container,
+        args.variants_filename,
+    )
 
 
-def dev_test_args():
+def dev_test_args() -> tuple[str, str, str, str]:
     import pathlib
 
-    path = f"{pathlib.Path.home()}/git/tb-ml/"
+    path = pathlib.Path(__file__).resolve().parent.parent
+    print(path)
     bam_file = f"{path}/test_data/test.cram"
     vc_container = "vc-test"
     pred_container = "rf-sm-predictor"
-    return bam_file, vc_container, pred_container
+    write_vars_fname = f"{path}/test_data/test_variants.vcf"
+    return bam_file, vc_container, pred_container, write_vars_fname
 
 
 def run_VC_container(
@@ -143,10 +156,10 @@ def get_target_vars_from_prediction_container(
 def run_prediction_container(
     pred_container_img_name: str,
     variants: pd.Series,
-) -> bool:
+) -> float:
     """
     Run a docker container containing a model for predicting AMR resistance from a
-    `pd.Series` of genotypes.
+    `pd.Series` of genotypes. The result is the probability of resistance.
     """
     # run the container to get the prediction
     p = subprocess.run(
@@ -159,4 +172,4 @@ def run_prediction_container(
         print(f"ERROR predicting resistance status with '{pred_container_img_name}':")
         print(p.stderr)
         exit(1)
-    return bool(int(p.stdout.strip()))
+    return float(p.stdout.strip())

@@ -13,21 +13,24 @@ If no argument is passed or the argument is `predict`, read a CSV with genotypes
 STDIN and print the predicted resistance status to STDOUT.
 """
 
+# get the variants the model has been fitted on
+target_vars = pd.read_csv('target_vars.csv', index_col=['POS', 'REF', 'ALT']).squeeze()
+
 if len(sys.argv) == 2 and sys.argv[1] == "get_target_vars":
-    with open("target_vars.csv", "r") as f:
-        for line in f:
-            sys.stdout.write(line)
+    sys.stdout.write(target_vars.to_csv())
 elif (len(sys.argv) == 2 and sys.argv[1] == "predict") or len(sys.argv) == 1:
     # load the model
     m = joblib.load("model.pkl")
     # get the prediction input from STDIN
-    X = pd.read_csv(sys.stdin, index_col=[0, 1, 2])  # type: ignore
+    X = pd.read_csv(sys.stdin, index_col=['POS', 'REF', 'ALT'])
     if X.shape[1] == 1:
         # the DataFrame has only 1 column --> there is only one sample --> it should be
         # the only row --> transpose
         X = X.T
-    # predict and print the result
-    ypred = m.predict(X)
+    # make sure the variant order is as expected
+    X = X.loc[:, target_vars.index]
+    # predict the probability for resistance and print the result
+    ypred = m.predict_proba(X)[:, 1]
     print(np.squeeze(ypred))
 else:
     sys.exit(
