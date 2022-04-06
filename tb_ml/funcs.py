@@ -1,5 +1,3 @@
-from glob import glob
-from uuid import uuid4
 import pandas as pd
 import numpy as np
 from typing import Union
@@ -54,21 +52,48 @@ def get_cli_args() -> tuple[str, str, str, Union[str, None]]:
     )
 
 
-def dev_test_args() -> tuple[str, str, str, str]:
-    import pathlib
-
-    path = pathlib.Path(__file__).resolve().parent.parent
-    print(path)
-    bam_file = f"{path}/test_data/test.cram"
-    vc_container = "vc-test"
-    pred_container = "rf-sm-predictor"
-    write_vars_fname = f"{path}/test_data/test_variants.vcf"
-    return bam_file, vc_container, pred_container, write_vars_fname
+def get_prediction(
+    bam_file: str,
+    vc_container: str,
+    pred_container: str,
+    write_vars_fname: Union[str, None] = None,
+) -> pd.Series:
+    """
+    Main function; uses two Docker containers (one containing a variant-calling pipeline
+    and one with a AMR prediction model) to predict AMR resistance from the aligned
+    reads of a sample
+    (other input types will be added in the future).
+    """
+    # get the allele frequencies of the training dataset from the prediction container
+    target_vars_AF: pd.Series = get_target_vars_from_prediction_container(
+        pred_container
+    )
+    # run the variant calling container and provide the target variants so that it can
+    # make sure that they are covered in the output
+    variants: pd.Series = run_VC_container(bam_file, vc_container, target_vars_AF)
+    # process variants to ensure proper dimensions for the prediction model
+    variants_proc: pd.Series = process_variants(variants, target_vars_AF)
+    if write_vars_fname is not None:
+        variants_proc.to_csv(write_vars_fname)
+    res = pd.Series(dtype=float)
+    res.name = (
+        f"file:{bam_file};vc_container:{vc_container};pred-container:{pred_container}"
+    )
+    # predict
+    res["resistance_probability"] = run_prediction_container(
+        pred_container, variants_proc
+    )
+    # get a few other stats to help interpret the result
+    # the number of variants of interest present in the initial genotype array and
+    res["shared_variants"] = len(target_vars_AF.index.intersection(variants.index))
+    res["dropped_variants"] = len(variants.index.difference(target_vars_AF.index))
+    res["variants_set_to_AF"] = len(target_vars_AF.index.difference(variants.index))
+    return res
 
 
 def run_VC_container(
-    VC_container_img_name: str,
     bam_file: str,
+    VC_container_img_name: str,
     target_vars: pd.Series,
     DP_threshold: int = 10,
 ) -> pd.Series:
@@ -78,7 +103,7 @@ def run_VC_container(
     'POS,REF,ALT' in STDIN in order to make sure that they are covered in the results.
     """
     # bring the target variants into the right format
-    target_vars_str = target_vars.reset_index()[  # type:ignore
+    target_vars_str: str = target_vars.reset_index()[  # type:ignore
         ["POS", "REF", "ALT"]
     ].to_csv(header=False, index=False)
     # run the container (the bind volume needs absolute paths)
@@ -101,7 +126,7 @@ def run_VC_container(
         print(p.stderr)
         exit(1)
     # reformat the result
-    variants = pd.read_csv(io.StringIO(p.stdout), header=None)
+    variants: pd.DataFrame = pd.read_csv(io.StringIO(p.stdout), header=None)
     variants.columns = ["POS", "REF", "ALT", "GT", "DP"]
     variants = variants.set_index(["POS", "REF", "ALT"])
     variants["GT"] = variants["GT"].apply(lambda x: x[0])
@@ -119,12 +144,13 @@ def process_variants(
     Makes sure `variants` and `AFs` have the same dimensions by dropping entries not
     present in `AFs` and using values from `AFs` for entries missing in `variants`.
     """
-    new_vars = variants.copy()
+    new_vars: pd.Series = variants.copy()
     # replace noncalls with the corresponding AF values
     new_vars.fillna(AFs, inplace=True)
     # add the allele frequencies for variants not found in the variant
     # calling pipeline to ensure matching dimensions for the prediction model
     new_vars = pd.concat((new_vars, AFs[AFs.index.difference(new_vars.index)]))
+    new_vars.name = 'GT'
     # make sure the order is as expected by the model
     new_vars = new_vars[AFs.index]
     return new_vars
@@ -147,7 +173,7 @@ def get_target_vars_from_prediction_container(
         print(f"ERROR extracting allele frequencies from '{pred_container_img_name}':")
         print(p.stderr)
         exit(1)
-    target_vars = (
+    target_vars: pd.Series = (
         pd.read_csv(io.StringIO(p.stdout)).set_index(["POS", "REF", "ALT"]).squeeze()
     )
     return target_vars
