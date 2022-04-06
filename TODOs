@@ -1,0 +1,5 @@
+*) add our test images to dockerhub and
+    -) change the tests to use the dockerhub urls
+    -) use the urls of our images as default arguments
+*) change package organisation files to the "modern" way (i.e. with project.toml and setup.cfg)
+*) automate testing with github actions (there is a tox plugin to use containers in testing)
