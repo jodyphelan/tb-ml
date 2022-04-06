@@ -65,9 +65,9 @@ def run_VC_container(
     'POS,REF,ALT' in STDIN in order to make sure that they are covered in the results.
     """
     # bring the target variants into the right format
-    target_vars_str = target_vars.reset_index()[["POS", "REF", "ALT"]].to_csv(
-        header=False, index=False
-    )
+    target_vars_str = target_vars.reset_index()[  # type:ignore
+        ["POS", "REF", "ALT"]
+    ].to_csv(header=False, index=False)
     # run the container (the bind volume needs absolute paths)
     bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
     p = subprocess.run(

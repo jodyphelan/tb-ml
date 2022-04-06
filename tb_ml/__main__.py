@@ -18,8 +18,8 @@ def main() -> None:
     # make sure that they are covered in the output
     variants: pd.Series = tb_ml.run_VC_container(vc_container, bam_file, target_vars_AF)
     # process variants to ensure proper dimensions for the prediction model
-    variants: pd.Series = tb_ml.process_variants(variants, target_vars_AF)
-    # # predict
+    variants = tb_ml.process_variants(variants, target_vars_AF)
+    # predict
     resistance_status: bool = tb_ml.run_prediction_container(pred_container, variants)
     if resistance_status:
         print("resistant")
