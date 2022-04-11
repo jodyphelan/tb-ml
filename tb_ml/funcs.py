@@ -1,17 +1,22 @@
 import pandas as pd
 import numpy as np
-from typing import Union
+from typing import Optional
 import subprocess
 import argparse
 import io
 import os
+import sys
 
 
-def get_cli_args() -> tuple[str, str, str, Union[str, None]]:
+DEFAULT_VC_CONTAINER = "jodyphelan/tb-ml-variant-calling"
+DEFAULT_PRED_CONTAINER = "jodyphelan/tb-ml-rf-streptomycin-predictor"
+
+
+def get_cli_args() -> tuple[str, str, str, Optional[str], Optional[str]]:
     parser = argparse.ArgumentParser(
         description="""
         TB-ML: A framework for comparing AMR prediction in M. tuberculosis.
-        """
+        """,
     )
     parser.add_argument(
         "-b",
@@ -25,29 +30,37 @@ def get_cli_args() -> tuple[str, str, str, Union[str, None]]:
         "-v",
         "--variant-calling-container",
         type=str,
-        required=True,
-        help="Name of the Docker image to use for variant-calling [required]",
+        default=DEFAULT_VC_CONTAINER,
+        help='Name of the Docker image for variant-calling (default: "%(default)s")',
         metavar="STR",
     )
     parser.add_argument(
         "-p",
         "--prediction-container",
         type=str,
-        required=True,
-        help="Name of the Docker image to use for prediction [required]",
+        default=DEFAULT_PRED_CONTAINER,
+        help='Name of the Docker image for prediction (default: "%(default)s")',
+        metavar="STR",
+    )
+    parser.add_argument(
+        "-o",
+        "--output",
+        type=str,
+        help="Write output to this file instead of STDOUT",
         metavar="STR",
     )
     parser.add_argument(
         "--variants-filename",
         type=str,
-        help="Write the called variants to this file before prediction [optional]",
+        help="Write the called variants to this file before prediction",
         metavar="STR",
     )
     args = parser.parse_args()
     return (
         args.bam,
-        args.prediction_container,
         args.variant_calling_container,
+        args.prediction_container,
+        args.output,
         args.variants_filename,
     )
 
@@ -56,7 +69,7 @@ def get_prediction(
     bam_file: str,
     vc_container: str,
     pred_container: str,
-    write_vars_fname: Union[str, None] = None,
+    write_vars_fname: Optional[str] = None,
 ) -> pd.Series:
     """
     Main function; uses two Docker containers (one containing a variant-calling pipeline
@@ -103,9 +116,9 @@ def run_VC_container(
     'POS,REF,ALT' in STDIN in order to make sure that they are covered in the results.
     """
     # bring the target variants into the right format
-    target_vars_str: str = target_vars.reset_index()[  # type:ignore
-        ["POS", "REF", "ALT"]
-    ].to_csv(header=False, index=False)
+    target_vars_str: str = target_vars.reset_index()[["POS", "REF", "ALT"]].to_csv(
+        header=False, index=False
+    )
     # run the container (the bind volume needs absolute paths)
     bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
     p = subprocess.run(
@@ -117,14 +130,14 @@ def run_VC_container(
             f"type=bind,source={bam_path},target=/data/aligned_reads",
             VC_container_img_name,
         ],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=sys.stderr,
         text=True,
         input=target_vars_str,
     )
     if p.returncode:
-        print(f"ERROR running variant-calling pipeline with '{VC_container_img_name}':")
-        print(p.stderr)
-        exit(1)
+        print(f"ERROR running variant-calling pipeline with '{VC_container_img_name}'")
+        exit(p.returncode)
     # reformat the result
     variants: pd.DataFrame = pd.read_csv(io.StringIO(p.stdout), header=None)
     variants.columns = ["POS", "REF", "ALT", "GT", "DP"]
@@ -150,7 +163,7 @@ def process_variants(
     # add the allele frequencies for variants not found in the variant
     # calling pipeline to ensure matching dimensions for the prediction model
     new_vars = pd.concat((new_vars, AFs[AFs.index.difference(new_vars.index)]))
-    new_vars.name = 'GT'
+    new_vars.name = "GT"
     # make sure the order is as expected by the model
     new_vars = new_vars[AFs.index]
     return new_vars
@@ -166,13 +179,13 @@ def get_target_vars_from_prediction_container(
     """
     p = subprocess.run(
         ["docker", "run", pred_container_img_name, "get_target_vars"],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=sys.stderr,
         text=True,
     )
     if p.returncode:
-        print(f"ERROR extracting allele frequencies from '{pred_container_img_name}':")
-        print(p.stderr)
-        exit(1)
+        print(f"ERROR extracting allele frequencies from '{pred_container_img_name}'")
+        exit(p.returncode)
     target_vars: pd.Series = (
         pd.read_csv(io.StringIO(p.stdout)).set_index(["POS", "REF", "ALT"]).squeeze()
     )
@@ -190,12 +203,12 @@ def run_prediction_container(
     # run the container to get the prediction
     p = subprocess.run(
         ["docker", "run", "-i", pred_container_img_name, "predict"],
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=sys.stderr,
         text=True,
         input=variants.to_csv(),
     )
     if p.returncode:
-        print(f"ERROR predicting resistance status with '{pred_container_img_name}':")
-        print(p.stderr)
-        exit(1)
+        print(f"ERROR predicting resistance status with '{pred_container_img_name}'")
+        exit(p.returncode)
     return float(p.stdout.strip())
