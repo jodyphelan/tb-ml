@@ -9,7 +9,7 @@ import sys
 
 
 DEFAULT_VC_CONTAINER = "jodyphelan/tb-ml-variant-calling"
-DEFAULT_PRED_CONTAINER = "jodyphelan/tb-ml-rf-streptomycin-predictor"
+DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-streptomycin-rf-predictor"
 
 
 def get_cli_args() -> tuple[str, str, str, Optional[str], Optional[str]]:
@@ -88,15 +88,18 @@ def get_prediction(
     variants_proc: pd.Series = process_variants(variants, target_vars_AF)
     if write_vars_fname is not None:
         variants_proc.to_csv(write_vars_fname)
-    res = pd.Series(dtype=float)
-    res.name = (
-        f"file:{bam_file};vc_container:{vc_container};pred-container:{pred_container}"
-    )
+    res = pd.Series(dtype=object)
+    res.index.name = "parameter"
+    res.name = "value"
+    res["file"] = bam_file
+    res["vc_container"] = vc_container
+    res["pred_container"] = pred_container
     # predict
     res["resistance_probability"] = run_prediction_container(
         pred_container, variants_proc
     )
-    # get a few other stats to help interpret the result
+    res["resistance_status"] = "S" if res["resistance_probability"] < 0.5 else "R"
+    # add a few other stats to help interpret the result
     # the number of variants of interest present in the initial genotype array and
     res["shared_variants"] = len(target_vars_AF.index.intersection(variants.index))
     res["dropped_variants"] = len(variants.index.difference(target_vars_AF.index))
@@ -116,9 +119,9 @@ def run_VC_container(
     'POS,REF,ALT' in STDIN in order to make sure that they are covered in the results.
     """
     # bring the target variants into the right format
-    target_vars_str: str = target_vars.reset_index()[["POS", "REF", "ALT"]].to_csv(
-        header=False, index=False
-    )
+    target_vars_str: str = target_vars.reset_index()[
+        ["POS", "REF", "ALT"]  # type: ignore
+    ].to_csv(header=False, index=False)
     # run the container (the bind volume needs absolute paths)
     bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
     p = subprocess.run(

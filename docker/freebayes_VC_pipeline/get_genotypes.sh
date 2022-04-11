@@ -22,5 +22,5 @@ samtools view -bML vars.bed "$bam_fname" -T refgenome.fa > extracted.bam
 freebayes -f refgenome.fa extracted.bam \
     --variant-input vars.vcf \
     --only-use-input-alleles |
-    bcftools norm -f refgenome.fa -m - |
+    bcftools norm -f refgenome.fa -m - 2> >(grep -v ^Lines) |
     bcftools query -f '%POS,%REF,%ALT,[%GT,%DP]\n'

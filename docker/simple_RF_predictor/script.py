@@ -29,6 +29,10 @@ elif (len(sys.argv) == 2 and sys.argv[1] == "predict") or len(sys.argv) == 1:
         X = X.T
     # make sure the variant order is as expected
     X = X.loc[:, target_vars.index]
+    # the model was fitted on a genotype matrix that had feature names of the format:
+    # `POS_REF_ALT` --> create a corresponding index (sklearn will throw a warning
+    # otherwise)
+    X.columns = ['_'.join(str(x) for x in col) for col in X.columns]
     # predict the probability for resistance and print the result
     ypred = m.predict_proba(X)[:, 1]
     print(np.squeeze(ypred))
