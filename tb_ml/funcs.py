@@ -8,7 +8,7 @@ import os
 import sys
 
 
-DEFAULT_VC_CONTAINER = "jodyphelan/tb-ml-variant-calling"
+DEFAULT_VC_CONTAINER = "julibeg/tb-ml-variant-calling"
 DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-streptomycin-rf-predictor"
 
 
@@ -140,7 +140,7 @@ def run_VC_container(
     )
     if p.returncode:
         print(f"ERROR running variant-calling pipeline with '{VC_container_img_name}'")
-        exit(p.returncode)
+        sys.exit(p.returncode)
     # reformat the result
     variants: pd.DataFrame = pd.read_csv(io.StringIO(p.stdout), header=None)
     variants.columns = ["POS", "REF", "ALT", "GT", "DP"]
@@ -188,7 +188,7 @@ def get_target_vars_from_prediction_container(
     )
     if p.returncode:
         print(f"ERROR extracting allele frequencies from '{pred_container_img_name}'")
-        exit(p.returncode)
+        sys.exit(p.returncode)
     target_vars: pd.Series = (
         pd.read_csv(io.StringIO(p.stdout)).set_index(["POS", "REF", "ALT"]).squeeze()
     )
@@ -213,5 +213,5 @@ def run_prediction_container(
     )
     if p.returncode:
         print(f"ERROR predicting resistance status with '{pred_container_img_name}'")
-        exit(p.returncode)
+        sys.exit(p.returncode)
     return float(p.stdout.strip())

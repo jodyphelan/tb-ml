@@ -16,9 +16,12 @@ def test_full() -> None:
     res = tb_ml.get_prediction(
         bam_file, tb_ml.DEFAULT_VC_CONTAINER, tb_ml.DEFAULT_PRED_CONTAINER
     )
-    # rename the index (the assertion would fail otherwise)
-    res.name = "test"
-    pdt.assert_series_equal(exp_result, res)
+    # `exp_result` was read into a `Series` with
+    for idx in exp_result.index:
+        exp_result[idx] = type(res[idx])(exp_result[idx])
+    # the bam filename in the result `Series` will contain the absolute path, which will
+    # be different from the expected results --> drop that row from both `Series`
+    pdt.assert_series_equal(exp_result.drop("file"), res.drop("file"))
 
 
 def test_VC_pipeline() -> None:
