@@ -1,3 +1,4 @@
+![Python tests](https://github.com/jodyphelan/tb-ml/workflows/Tests/badge.svg)
 # tb-ml
 
 A standardised approach to predicting resistance using machine learning models.
