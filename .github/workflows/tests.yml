@@ -5,9 +5,10 @@ on:
   - pull_request
 
 jobs:
-  test:
+  build:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python-version: ["3.9"]
 
@@ -22,6 +23,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install -r requirements_dev.txt
+          pip install .
       - name: Lint with flake8
         run: flake8 tb_ml
       - name: Run mypy
