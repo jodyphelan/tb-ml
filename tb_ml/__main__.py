@@ -1,6 +1,4 @@
-import pandas as pd
 import tb_ml
-from typing import Union
 
 
 def main() -> None:
