@@ -2,7 +2,7 @@
 .vscode
 
 # files used to generate the test data and models
-test_data/*.py
+fit_simple_test_model
 
 # exported docker images
 *.tar
