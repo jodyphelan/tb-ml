@@ -120,7 +120,7 @@ def run_VC_container(
     """
     # bring the target variants into the right format
     target_vars_str: str = target_vars.reset_index()[["POS", "REF", "ALT"]].to_csv(
-        header=False, index=False
+        index=False
     )
     # run the container (the bind volume needs absolute paths)
     bam_path = bam_file if os.path.isabs(bam_file) else f"{os.getcwd()}/{bam_file}"
@@ -142,8 +142,7 @@ def run_VC_container(
         print(f"ERROR running variant-calling pipeline with '{VC_container_img_name}'")
         sys.exit(p.returncode)
     # reformat the result
-    variants: pd.DataFrame = pd.read_csv(io.StringIO(p.stdout), header=None)
-    variants.columns = ["POS", "REF", "ALT", "GT", "DP"]
+    variants: pd.DataFrame = pd.read_csv(io.StringIO(p.stdout))
     variants = variants.set_index(["POS", "REF", "ALT"])
     variants["GT"] = variants["GT"].apply(lambda x: x[0])
     variants = variants.replace(".", np.nan).astype(float)

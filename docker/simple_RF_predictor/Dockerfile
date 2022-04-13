@@ -6,9 +6,9 @@ RUN conda install -c conda-forge -y \
     joblib=1.1.0 \
     scikit-learn=1.0.2
 
-# copy the python script and the model / data files
-COPY script.py /
+# copy the model / data files and the script performing the prediction
 COPY SM_RF_fitted.pkl /model.pkl
 COPY SM_RF_target_vars_AFs.csv /target_vars.csv
+COPY script.py /
 
 ENTRYPOINT ["python", "/script.py"]

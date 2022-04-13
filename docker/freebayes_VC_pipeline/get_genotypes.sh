@@ -4,7 +4,7 @@ bam_fname=aligned_reads
 
 # get relevant positions from STDIN and write them to a dummy VCF and a dummy BED file
 cp vcf_header.txt vars.vcf
-awk -F',' \
+sed '1d' | awk -F',' \
     'BEGIN{OFS="\t"}
     {print "Chromosome", $1, ".", $2, $3, ".", ".", "AF=1"}' |
     sort -k2,2 -n >> vars.vcf
@@ -18,6 +18,8 @@ grep -v "#" vars.vcf | awk -F'\t' \
 samtools index "$bam_fname"
 samtools view -bML vars.bed "$bam_fname" -T refgenome.fa > extracted.bam
 
+# print the header for the result
+echo 'POS,REF,ALT,GT,DP'
 # now run freebayes and format the output
 freebayes -f refgenome.fa extracted.bam \
     --variant-input vars.vcf \
