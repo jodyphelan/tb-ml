@@ -16,12 +16,20 @@ def test_full() -> None:
     res = tb_ml.get_prediction(
         bam_file, tb_ml.DEFAULT_VC_CONTAINER, tb_ml.DEFAULT_PRED_CONTAINER
     )
-    # `exp_result` was read into a `Series` with
+    # `exp_result` was read into a `Series` with all strings --> change the datatypes
+    # to match up with res
     for idx in exp_result.index:
         exp_result[idx] = type(res[idx])(exp_result[idx])
     # the bam filename in the result `Series` will contain the absolute path, which will
     # be different from the expected results --> drop that row from both `Series`
-    pdt.assert_series_equal(exp_result.drop("file"), res.drop("file"))
+    exp_result = exp_result.drop("file")
+    res = res.drop("file")
+    # the docker container might have a different version from the container that was
+    # used to generate `exp_result` --> remove the version from res
+    res['vc_container'] = res["vc_container"].split(':')[0]
+    res['pred_container'] = res["pred_container"].split(':')[0]
+    # now check the result
+    pdt.assert_series_equal(exp_result, res)
 
 
 def test_VC_pipeline() -> None:
