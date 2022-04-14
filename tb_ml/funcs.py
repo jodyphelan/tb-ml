@@ -7,8 +7,8 @@ import os
 import sys
 
 
-DEFAULT_VC_CONTAINER = "julibeg/tb-ml-variant-calling:0.1.1"
-DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-streptomycin-rf-predictor:0.1.1"
+DEFAULT_VC_CONTAINER = "julibeg/tb-ml-variant-calling:v0.1.1"
+DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-streptomycin-rf-predictor:v0.1.1"
 
 
 def get_cli_args() -> tuple[str, str, str, Optional[str], Optional[str]]:
