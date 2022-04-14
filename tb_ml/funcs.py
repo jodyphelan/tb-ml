@@ -11,7 +11,15 @@ DEFAULT_VC_CONTAINER = "julibeg/tb-ml-variant-calling:0.1.1"
 DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-streptomycin-rf-predictor:0.1.1"
 
 
-def get_cli_args() -> tuple[str, str, str, Optional[str], Optional[str]]:
+def get_cli_args() -> tuple[
+    str,
+    str,
+    str,
+    Optional[str],
+    Optional[str],
+    Optional[dict[str, str]],
+    Optional[dict[str, str]],
+]:
     parser = argparse.ArgumentParser(
         description="""
         TB-ML: A framework for comparing AMR prediction in M. tuberculosis.
@@ -54,13 +62,37 @@ def get_cli_args() -> tuple[str, str, str, Optional[str], Optional[str]]:
         help="Write the called variants to this file before prediction",
         metavar="STR",
     )
+    parser.add_argument(
+        "--variant-calling-args",
+        type=str,
+        help="Extra arguments (key-value pairs) to pass on to the VC container",
+        metavar="STR",
+    )
+    parser.add_argument(
+        "--prediction-args",
+        type=str,
+        help="Extra arguments (key-value pairs) to pass on to the prediction container",
+        metavar="STR",
+    )
     args = parser.parse_args()
+    if args.variant_calling_args:
+        variant_calling_args = {
+            arg.split("=")[0]: arg.split("=")[1]
+            for arg in args.variant_calling_args.split(",")
+        }
+    if args.prediction_args:
+        prediction_args = {
+            arg.split("=")[0]: arg.split("=")[1]
+            for arg in args.prediction_args.split(",")
+        }
     return (
         args.bam,
         args.variant_calling_container,
         args.prediction_container,
         args.output,
         args.variants_filename,
+        variant_calling_args,
+        prediction_args,
     )
 
 
