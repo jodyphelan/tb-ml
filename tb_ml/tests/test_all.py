@@ -6,6 +6,9 @@ import pandas.testing as pdt
 
 root = pathlib.Path(__file__).resolve().parent.parent.parent
 
+VC_CONTAINER = tb_ml.DEFAULT_VC_CONTAINER
+PRED_CONTAINER = tb_ml.DEFAULT_PRED_CONTAINER
+
 bam_file = f"{root}/test_data/test.cram"
 
 
@@ -13,35 +16,27 @@ def test_full() -> None:
     # get the expected result
     exp_result = pd.read_csv(f"{root}/test_data/test_result.csv", index_col=0).squeeze()
     # get the actual result
-    res = tb_ml.get_prediction(
-        bam_file, tb_ml.DEFAULT_VC_CONTAINER, tb_ml.DEFAULT_PRED_CONTAINER
-    )
+    res = tb_ml.get_prediction(bam_file, VC_CONTAINER, PRED_CONTAINER)
+    # some info in the final report might have changed, but we are only interested in
+    # the prediction and VC stats --> drop these rows
+    res.drop(["file", "vc_container", "pred_container"], inplace=True)
     # `exp_result` was read into a `Series` with all strings --> change the datatypes
     # to match up with res
     for idx in exp_result.index:
         exp_result[idx] = type(res[idx])(exp_result[idx])
-    # the bam filename in the result `Series` will contain the absolute path, which will
-    # be different from the expected results --> drop that row from both `Series`
-    exp_result = exp_result.drop("file")
-    res = res.drop("file")
-    # the docker container might have a different version from the container that was
-    # used to generate `exp_result` --> remove the version from res
-    res['vc_container'] = res["vc_container"].split(':')[0]
-    res['pred_container'] = res["pred_container"].split(':')[0]
-    # now check the result
+    # now check the results
     pdt.assert_series_equal(exp_result, res)
 
 
-def test_VC_pipeline() -> None:
+def test_variants() -> None:
     # get the expected variants
     exp_vars = pd.read_csv(
         f"{root}/test_data/test_variants.csv", index_col=["POS", "REF", "ALT"]
     ).squeeze()
-    target_vars_AF: pd.Series = tb_ml.get_target_vars_from_prediction_container(
-        tb_ml.DEFAULT_PRED_CONTAINER
-    )
-    variants: pd.Series = tb_ml.run_VC_container(
-        bam_file, tb_ml.DEFAULT_VC_CONTAINER, target_vars_AF
-    )
-    variants_proc: pd.Series = tb_ml.process_variants(variants, target_vars_AF)
-    pdt.assert_series_equal(exp_vars, variants_proc)
+    exp_vc_stats = pd.read_csv(
+        f"{root}/test_data/test_vc_stats.csv", index_col=0
+    ).squeeze()
+    target_vars_AF = tb_ml.get_target_vars_from_prediction_container(PRED_CONTAINER)
+    vc_stats, variants = tb_ml.run_VC_container(bam_file, VC_CONTAINER, target_vars_AF)
+    pdt.assert_series_equal(exp_vc_stats, vc_stats)
+    pdt.assert_series_equal(exp_vars, variants)

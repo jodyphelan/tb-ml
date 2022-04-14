@@ -1,9 +1,8 @@
 parameter,value
-file,test_data/test.cram
-vc_container,julibeg/tb-ml-variant-calling
-pred_container,julibeg/tb-ml-streptomycin-rf-predictor
-resistance_probability,0.19
-resistance_status,S
 shared_variants,7248
 dropped_variants,0
-variants_set_to_AF,28
+missing_variants,28
+noncalls,96
+variants_set_to_AF,124
+resistance_probability,0.33
+resistance_status,S
