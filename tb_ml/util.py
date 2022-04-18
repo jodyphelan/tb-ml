@@ -17,13 +17,14 @@ class DockerError(Exception):
 
 
 class DockerImage:
-    def __init__(self, img_name: str) -> None:
+    def __init__(self, img_name: str, pull: bool = False) -> None:
         # check if the image name has a tag. Add 'latest' if not
         img_name = (f"{img_name}:latest") if ":" not in img_name else img_name
         self.img_name: str = img_name
         # pull from the repo, if the image is already present on the host and
         # up to date, `docker pull` won't do anything.
-        self.pull()
+        if pull:
+            self.pull()
 
     def pull(self) -> None:
         """

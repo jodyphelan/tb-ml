@@ -1,9 +1,7 @@
 import pandas as pd
 from typing import Optional
-import subprocess
 import argparse
 import io
-import sys
 
 from . import util
 
@@ -16,6 +14,7 @@ class VariantCallingContainer(util.DockerImage):
         self,
         bam_file: str,
         target_vars_AF: pd.Series,
+        extra_args: Optional[list[str]] = None,
     ) -> tuple[pd.Series, pd.Series]:
         bam_path = util.get_absolute_path(bam_file)
         result = self.run(
@@ -23,6 +22,7 @@ class VariantCallingContainer(util.DockerImage):
                 "--mount",
                 f"type=bind,source={bam_path},target=/data/aligned_reads",
             ],
+            extra_args=extra_args,
             input=target_vars_AF.to_csv(),
         )
         # the first few lines of the result will start with '#' and hold some basic
@@ -63,8 +63,8 @@ def get_cli_args() -> tuple[
     str,
     Optional[str],
     Optional[str],
-    Optional[dict[str, str]],
-    Optional[dict[str, str]],
+    Optional[list[str]],
+    Optional[list[str]],
 ]:
     parser = argparse.ArgumentParser(
         description="""
@@ -111,34 +111,26 @@ def get_cli_args() -> tuple[
     parser.add_argument(
         "--variant-calling-args",
         type=str,
-        help="Extra arguments (key-value pairs) to pass on to the VC container",
+        nargs="+",
+        help="Extra arguments to pass on to the VC container",
         metavar="STR",
     )
     parser.add_argument(
         "--prediction-args",
         type=str,
-        help="Extra arguments (key-value pairs) to pass on to the prediction container",
+        nargs="+",
+        help="Extra arguments to pass on to the prediction container",
         metavar="STR",
     )
     args = parser.parse_args()
-    if args.variant_calling_args:
-        variant_calling_args = {
-            arg.split("=")[0]: arg.split("=")[1]
-            for arg in args.variant_calling_args.split(",")
-        }
-    if args.prediction_args:
-        prediction_args = {
-            arg.split("=")[0]: arg.split("=")[1]
-            for arg in args.prediction_args.split(",")
-        }
     return (
         args.bam,
         args.variant_calling_container,
         args.prediction_container,
         args.output,
         args.variants_filename,
-        variant_calling_args,
-        prediction_args,
+        args.variant_calling_args,
+        args.prediction_args,
     )
 
 
@@ -147,6 +139,8 @@ def get_prediction(
     vc_img_name: str,
     pred_img_name: str,
     write_vars_fname: Optional[str] = None,
+    vc_extra_args: Optional[list[str]] = None,
+    pred_extra_args: Optional[list[str]] = None,
 ) -> pd.Series:
     """
     Main function; uses two Docker containers (one containing a variant-calling pipeline
@@ -163,7 +157,9 @@ def get_prediction(
     # make sure that they are covered in the output
     vc_stats: pd.Series
     variants: pd.Series
-    vc_stats, variants = vc_container.run_vc_pipeline(bam_file, target_vars_AF)
+    vc_stats, variants = vc_container.run_vc_pipeline(
+        bam_file, target_vars_AF, extra_args=vc_extra_args
+    )
     if write_vars_fname is not None:
         variants.to_csv(write_vars_fname)
     # generate Series for final report

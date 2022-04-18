@@ -1,6 +1,8 @@
 #!/bin/bash
 
 bam_fname=aligned_reads
+# use a default DP threshold of 10
+dp_threshold=${1:-10}
 
 # get relevant positions from STDIN and write them to a dummy VCF and a dummy BED file
 mv vcf_header.txt vars.vcf
@@ -27,4 +29,4 @@ samtools view -bML vars.bed "$bam_fname" -T refgenome.fa >extracted.bam
         --only-use-input-alleles |
         bcftools norm -f refgenome.fa -m - 2> >(grep -v ^Lines) |
         bcftools query -f '%POS,%REF,%ALT,[%GT,%DP]\n'
-) | python /process_variants.py
+) | python /process_variants.py "$dp_threshold"

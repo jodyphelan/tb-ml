@@ -10,8 +10,7 @@ Some simple stats (e.g. the number of missing variants etc.) are printed as comm
 STDOUT before the processed variants are printed as CSV in the format `POS,REF,ALT,GT`.
 """
 
-DP_threshold = 10
-
+DP_threshold = int(sys.argv[1]) if len(sys.argv) == 2 else 10
 # read the data
 AFs = pd.read_csv("target_vars_AF.csv", index_col=["POS", "REF", "ALT"]).squeeze()
 variants = pd.read_csv(sys.stdin, index_col=["POS", "REF", "ALT"])
