@@ -111,26 +111,39 @@ def get_cli_args() -> tuple[
     parser.add_argument(
         "--variant-calling-args",
         type=str,
-        nargs="+",
-        help="Extra arguments to pass on to the VC container",
+        help=(
+            "Extra argument(s) to pass on to the VC container; "
+            "Use quotes for multiple arguments"
+        ),
         metavar="STR",
     )
     parser.add_argument(
         "--prediction-args",
         type=str,
-        nargs="+",
-        help="Extra arguments to pass on to the prediction container",
+        help=(
+            "Extra argument(s) to pass on to the prediction container; "
+            "Use quotes for multiple arguments"
+        ),
         metavar="STR",
     )
     args = parser.parse_args()
+    variant_calling_args = (
+        args.variant_calling_args.split()
+        if args.variant_calling_args is not None
+        else None
+    )
+    args = parser.parse_args()
+    prediction_args = (
+        args.prediction_args.split() if args.prediction_args is not None else None
+    )
     return (
         args.bam,
         args.variant_calling_container,
         args.prediction_container,
         args.output,
         args.variants_filename,
-        args.variant_calling_args,
-        args.prediction_args,
+        variant_calling_args,
+        prediction_args,
     )
 
 
