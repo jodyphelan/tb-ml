@@ -5,8 +5,8 @@ import io
 
 from . import util
 
-DEFAULT_VC_CONTAINER = "julibeg/tb-ml-variant-calling:v0.1.1"
-DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-streptomycin-rf-predictor:v0.1.1"
+DEFAULT_VC_CONTAINER = "julibeg/tb-ml-variant-calling"
+DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-streptomycin-rf-predictor"
 
 
 class VariantCallingContainer(util.DockerImage):
