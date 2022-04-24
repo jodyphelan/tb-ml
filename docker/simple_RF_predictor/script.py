@@ -14,13 +14,13 @@ STDIN and print the predicted resistance status to STDOUT.
 """
 
 # get the variants the model has been fitted on
-target_vars = pd.read_csv("target_vars.csv", index_col=["POS", "REF", "ALT"]).squeeze()
+target_vars = pd.read_csv("/target_vars.csv", index_col=["POS", "REF", "ALT"]).squeeze()
 
 if len(sys.argv) == 2 and sys.argv[1] == "get_target_vars":
     sys.stdout.write(target_vars.to_csv())
 elif (len(sys.argv) == 2 and sys.argv[1] == "predict") or len(sys.argv) == 1:
     # load the model
-    m = joblib.load("model.pkl")
+    m = joblib.load("/model.pkl")
     # get the prediction input from STDIN
     X = pd.read_csv(sys.stdin, index_col=["POS", "REF", "ALT"])
     # make sure the dimensions match up and X has only one column
