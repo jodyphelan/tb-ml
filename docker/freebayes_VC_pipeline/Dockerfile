@@ -14,7 +14,7 @@ COPY MTB-h37rv_asm19595v2-eg18.fa ./refgenome.fa
 COPY vcf_header.txt .
 
 # copy entrypoint script and the python helper script
-COPY get_genotypes.sh /
-COPY process_variants.py /
+COPY get_genotypes.sh .
+COPY process_variants.py .
 
-ENTRYPOINT [ "/bin/bash", "/get_genotypes.sh" ]
+ENTRYPOINT [ "/bin/bash", "/data/get_genotypes.sh" ]

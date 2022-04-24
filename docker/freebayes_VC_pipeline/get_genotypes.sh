@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# make sure that we are in `/data` (in case the container is run via singularity)
+cd /data
 bam_fname=aligned_reads
 # use a default DP threshold of 10
 dp_threshold=${1:-10}
@@ -29,4 +31,4 @@ samtools view -bML vars.bed "$bam_fname" -T refgenome.fa >extracted.bam
         --only-use-input-alleles |
         bcftools norm -f refgenome.fa -m - 2> >(grep -v ^Lines) |
         bcftools query -f '%POS,%REF,%ALT,[%GT,%DP]\n'
-) | python /process_variants.py "$dp_threshold"
+) | python process_variants.py "$dp_threshold"
