@@ -1,6 +1,6 @@
 import pandas as pd
 from typing import Optional
-import argparse
+import argpass
 import io
 
 from . import util
@@ -66,7 +66,7 @@ def get_cli_args() -> tuple[
     Optional[list[str]],
     Optional[list[str]],
 ]:
-    parser = argparse.ArgumentParser(
+    parser = argpass.ArgumentParser(
         description="""
         TB-ML: A framework for comparing AMR prediction in M. tuberculosis.
         """,
@@ -111,39 +111,26 @@ def get_cli_args() -> tuple[
     parser.add_argument(
         "--variant-calling-args",
         type=str,
-        help=(
-            "Extra argument(s) to pass on to the VC container; "
-            "Use quotes for multiple arguments"
-        ),
+        nargs=argpass.NargsOption.COLLECT_UNTIL_NEXT_KNOWN,
+        help="Extra argument(s) to pass on to the VC container",
         metavar="STR",
     )
     parser.add_argument(
         "--prediction-args",
         type=str,
-        help=(
-            "Extra argument(s) to pass on to the prediction container; "
-            "Use quotes for multiple arguments"
-        ),
+        nargs=argpass.NargsOption.COLLECT_UNTIL_NEXT_KNOWN,
+        help="Extra argument(s) to pass on to the prediction container",
         metavar="STR",
     )
     args = parser.parse_args()
-    variant_calling_args = (
-        args.variant_calling_args.split()
-        if args.variant_calling_args is not None
-        else None
-    )
-    args = parser.parse_args()
-    prediction_args = (
-        args.prediction_args.split() if args.prediction_args is not None else None
-    )
     return (
         args.bam,
         args.variant_calling_container,
         args.prediction_container,
         args.output,
         args.variants_filename,
-        variant_calling_args,
-        prediction_args,
+        args.variant_calling_args,
+        args.prediction_args,
     )
 
 
