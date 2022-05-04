@@ -11,6 +11,6 @@ The prediction container is expected to read a CSV in the form of `POS,REF,ALT,G
 
 ```bash
 git clone https://github.com/jodyphelan/tb-ml.git
+pip install -r requirements.txt 
 pip install .
-pip install git+https://github.com/julibeg/argpass.git
 ```
