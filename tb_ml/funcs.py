@@ -1,12 +1,16 @@
 import pandas as pd
 from typing import Optional
 import argpass
+import tempfile
+import os
 import io
 
 from . import util
 
-DEFAULT_VC_CONTAINER = "julibeg/tb-ml-variant-calling"
-DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-streptomycin-rf-predictor"
+
+
+DEFAULT_VC_CONTAINER = "julibeg/tb-ml-smk-variant-calling:v0.0.1"
+DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-smk-streptomycin-rf-predictor:v0.0.2"
 
 
 class VariantCallingContainer(util.DockerImage):
@@ -16,15 +20,28 @@ class VariantCallingContainer(util.DockerImage):
         target_vars_AF: pd.Series,
         extra_args: Optional[list[str]] = None,
     ) -> tuple[pd.Series, pd.Series]:
+        # docker needs absolute paths for mounts
         bam_path = util.get_absolute_path(bam_file)
+        # we need to write the target vars to a temporary file
+        with util.temp_file() as tmp_file, open(tmp_file) as f:
+            f.write(target_vars_AF.to_csv())
+        # define mount points in container
+        container_bam = "/data/aligned_reads"
+        container_target_vars = "/data/target_vars_AF"
+        # define the arguments passed to the entrypoint in the container
+        extra_args = [] if extra_args is None else extra_args
+        extra_args += ["-b", container_bam, "-t", container_target_vars]
         result = self.run(
             docker_args=[
                 "--mount",
-                f"type=bind,source={bam_path},target=/data/aligned_reads",
+                f"type=bind,source={bam_path},target={container_bam}",
+                "--mount",
+                f"type=bind,source={tmp_path},target={container_target_vars}",
             ],
             extra_args=extra_args,
             input=target_vars_AF.to_csv(),
         )
+        os.remove(tmp_path)
         # the first few lines of the result will start with '#' and hold some basic
         # stats about the variant calling process
         stats_lines = []
@@ -54,7 +71,7 @@ class PredictionContainer(util.DockerImage):
         return target_vars
 
     def predict(self, variants: pd.Series) -> float:
-        return float(self.run(input=variants.to_csv(), extra_args=["predict"]).strip())
+        result = self.run(extra_args=["predict"]).strip())
 
 
 def get_cli_args() -> tuple[
