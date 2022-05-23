@@ -1,12 +1,9 @@
 import pandas as pd
 from typing import Optional
 import argpass
-import tempfile
-import os
 import io
 
 from . import util
-
 
 
 DEFAULT_VC_CONTAINER = "julibeg/tb-ml-smk-variant-calling:v0.0.1"
@@ -23,25 +20,24 @@ class VariantCallingContainer(util.DockerImage):
         # docker needs absolute paths for mounts
         bam_path = util.get_absolute_path(bam_file)
         # we need to write the target vars to a temporary file
-        with util.temp_file() as tmp_file, open(tmp_file) as f:
-            f.write(target_vars_AF.to_csv())
-        # define mount points in container
-        container_bam = "/data/aligned_reads"
-        container_target_vars = "/data/target_vars_AF"
-        # define the arguments passed to the entrypoint in the container
-        extra_args = [] if extra_args is None else extra_args
-        extra_args += ["-b", container_bam, "-t", container_target_vars]
-        result = self.run(
-            docker_args=[
-                "--mount",
-                f"type=bind,source={bam_path},target={container_bam}",
-                "--mount",
-                f"type=bind,source={tmp_path},target={container_target_vars}",
-            ],
-            extra_args=extra_args,
-            input=target_vars_AF.to_csv(),
-        )
-        os.remove(tmp_path)
+        with util.temp_file() as tmp_path:
+            target_vars_AF.to_csv(tmp_path)
+            # define mount points in container
+            container_bam_path = "/data/aligned_reads"
+            container_target_vars_path = "/data/target_vars_AF"
+            # define the arguments to be passed to the entrypoint in the container
+            extra_args = [] if extra_args is None else extra_args
+            extra_args += ["-b", container_bam_path, "-t", container_target_vars_path]
+            result = self.run(
+                docker_args=[
+                    "--mount",
+                    f"type=bind,source={bam_path},target={container_bam_path}",
+                    "--mount",
+                    f"type=bind,source={tmp_path},target={container_target_vars_path}",
+                ],
+                extra_args=extra_args,
+                input=target_vars_AF.to_csv(),
+            )
         # the first few lines of the result will start with '#' and hold some basic
         # stats about the variant calling process
         stats_lines = []
@@ -70,8 +66,23 @@ class PredictionContainer(util.DockerImage):
         )
         return target_vars
 
-    def predict(self, variants: pd.Series) -> float:
-        result = self.run(extra_args=["predict"]).strip())
+    def predict(
+        self, variants: pd.Series, extra_args: Optional[list[str]] = None
+    ) -> float:
+        extra_args = [] if extra_args is None else extra_args
+        with util.temp_file() as tmp_path:
+            # define the arguments to be passed to the entrypoint in the container
+            variants.to_csv(tmp_path)
+            container_vars_path = "/data/variants.csv"
+            extra_args += ["predict", container_vars_path]
+            result = self.run(
+                extra_args=extra_args,
+                docker_args=[
+                    "--mount",
+                    f"type=bind,source={tmp_path},target={container_vars_path}",
+                ],
+            ).strip()
+        return float(result)
 
 
 def get_cli_args() -> tuple[
@@ -188,6 +199,6 @@ def get_prediction(
     res["pred_container"] = pred_img_name
     res = pd.concat((res, vc_stats))
     # predict
-    res["resistance_probability"] = pred_container.predict(variants)
+    res["resistance_probability"] = pred_container.predict(variants, pred_extra_args)
     res["resistance_status"] = "S" if res["resistance_probability"] < 0.5 else "R"
     return res

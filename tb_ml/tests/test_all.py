@@ -12,7 +12,16 @@ PRED_CONTAINER_IMG_NAME = tb_ml.DEFAULT_PRED_CONTAINER
 bam_file = f"{root}/test_data/test.cram"
 
 
-def test_full() -> None:
+def _get_expected_variants():
+    return pd.read_csv(
+        f"{root}/test_data/test_variants.csv", index_col=["POS", "REF", "ALT"]
+    ).squeeze()
+
+
+def test_full():
+    """
+    Test the full pipeline.
+    """
     # get the expected result
     exp_result = pd.read_csv(f"{root}/test_data/test_result.csv", index_col=0).squeeze()
     # get the actual result
@@ -28,11 +37,12 @@ def test_full() -> None:
     pdt.assert_series_equal(exp_result, res)
 
 
-def test_variants() -> None:
+def test_variants():
+    """
+    Test the variant calling.
+    """
     # get the expected variants
-    exp_vars = pd.read_csv(
-        f"{root}/test_data/test_variants.csv", index_col=["POS", "REF", "ALT"]
-    ).squeeze()
+    exp_vars = _get_expected_variants()
     exp_vc_stats = pd.read_csv(
         f"{root}/test_data/test_vc_stats.csv", index_col=0
     ).squeeze()
@@ -45,3 +55,13 @@ def test_variants() -> None:
     vc_stats, variants = vc_container.run_vc_pipeline(bam_file, target_vars_AF)
     pdt.assert_series_equal(exp_vc_stats, vc_stats)
     pdt.assert_series_equal(exp_vars, variants)
+
+
+def test_prediction():
+    """
+    Test the prediction
+    """
+    pred_container = tb_ml.PredictionContainer(PRED_CONTAINER_IMG_NAME)
+    variants = _get_expected_variants()
+    pred = pred_container.predict(variants)
+    assert pred == 0.33

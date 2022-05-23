@@ -8,6 +8,6 @@ testpaths = [
 ]
 
 [tool.mypy]
-exclude = "docker/|test_data/"
+exclude = "docker|test_data|tests"
 ignore_missing_imports = true
 strict = true

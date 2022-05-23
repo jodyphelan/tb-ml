@@ -1,9 +1,7 @@
-# %% ###################################################################
 import subprocess
 import sys
 from typing import Optional
 from typing import Iterator
-import time
 from contextlib import contextmanager
 import tempfile
 import os
@@ -13,7 +11,7 @@ import os
 def temp_file() -> Iterator[str]:
     """
     Context manager for creating and deleting a temporary file (works cross-platform
-    as opposed to tempfile.NamedTemporaryFile)
+    as opposed to `tempfile.NamedTemporaryFile`)
     """
     tmp_fd, tmp_path = tempfile.mkstemp()
     os.close(tmp_fd)
@@ -21,30 +19,6 @@ def temp_file() -> Iterator[str]:
         yield tmp_path
     finally:
         os.remove(tmp_path)
-
-
-with temp_file() as tmp:
-    print(tmp)
-    with open(tmp, 'w') as f:
-        f.write('seasaaa\n')
-    time.sleep(100)
-
-# %% ###################################################################
-with temp_file() as tmp_file:
-    print(tmp_file)
-    with open(tmp_file, 'w') as f:
-        f.write('blaaaaaaaaa\n')
-    time.sleep(100)
-
-# %% ###################################################################
-with temp_file() as tmp_file:
-    print(tmp_file)
-    with open(tmp_file, 'w') as f:
-        f.write("seas\n")
-    with open(tmp_file, 'r') as f:
-        print(f.read())
-    time.sleep(100)
-# %% ###################################################################
 
 
 def get_absolute_path(path: str) -> str:
