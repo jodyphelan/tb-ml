@@ -1,2 +1,0 @@
-*) We implemented a small "API" for Docker images. We could update / pull images via this as well, but this would require checking if images are present locally or if the remote version is more recent etc.
-    --> maybe let's leave this to the user for now. 
