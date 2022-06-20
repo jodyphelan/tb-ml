@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import List, Optional
+from typing import List, Dict, Tuple, Optional
 import argpass
 import io
 
@@ -16,7 +16,7 @@ class VariantCallingContainer(util.DockerImage):
         bam_file: str,
         target_vars_AF: pd.Series,
         extra_args: Optional[List[str]] = None,
-    ) -> tuple[pd.Series, pd.Series]:
+    ) -> Tuple[pd.Series, pd.Series]:
         # docker needs absolute paths for mounts
         bam_path = util.get_absolute_path(bam_file)
         # we need to write the target vars to a temporary file
@@ -85,53 +85,25 @@ class PredictionContainer(util.DockerImage):
         return float(result)
 
 
-def get_cli_args() -> tuple[str, List[str], str, List[str]]:
+def get_cli_args() -> Dict[str, str]:
     parser = argpass.ArgumentParser(
         description="""
         TB-ML: A framework for comparing AMR prediction in M. tuberculosis.
         """,
     )
     parser.add_argument(
-        "--preprocessing-container",
+        "--container",
         type=str,
         required=True,
-        help='Name of the Docker image for pre-processing [required]',
+        action="append",
+        nargs="+",
+        help="Name of Docker image and corresponding extra arguments [required]",
         metavar="STR",
-        dest="preproc_container",
     )
-    parser.add_argument(
-        "--preprocessing-args",
-        type=str,
-        required=True,
-        help="String with extra argument(s) to pass on to the pre-processing container",
-        metavar="STR",
-        dest="preproc_args",
-    )
-    parser.add_argument(
-        "--prediction-container",
-        type=str,
-        required=True,
-        help='Name of the Docker image for prediction [required]',
-        metavar="STR",
-        dest="pred_container",
-    )
-    parser.add_argument(
-        "--prediction-args",
-        type=str,
-        required=True,
-        help="String with extra argument(s) to pass on to the prediction container",
-        metavar="STR",
-        dest="pred_args",
-    )
-    args = parser.parse_args()
-    preproc_args = [] if args.preproc_args is None else args.preproc_args.split()
-    pred_args = [] if args.pred_args is None else args.pred_args.split()
-    return (
-        args.preproc_container,
-        preproc_args,
-        args.pred_container,
-        pred_args,
-    )
+    container_dict = {
+        cont_args[0]: cont_args[1:] for cont_args in parser.parse_args().container
+    }
+    return container_dict
 
 
 def get_prediction(
