@@ -1,5 +1,5 @@
 import pandas as pd
-from typing import Optional
+from typing import List, Optional
 import argpass
 import io
 
@@ -15,7 +15,7 @@ class VariantCallingContainer(util.DockerImage):
         self,
         bam_file: str,
         target_vars_AF: pd.Series,
-        extra_args: Optional[list[str]] = None,
+        extra_args: Optional[List[str]] = None,
     ) -> tuple[pd.Series, pd.Series]:
         # docker needs absolute paths for mounts
         bam_path = util.get_absolute_path(bam_file)
@@ -67,7 +67,7 @@ class PredictionContainer(util.DockerImage):
         return target_vars
 
     def predict(
-        self, variants: pd.Series, extra_args: Optional[list[str]] = None
+        self, variants: pd.Series, extra_args: Optional[List[str]] = None
     ) -> float:
         extra_args = [] if extra_args is None else extra_args
         with util.temp_file() as tmp_path:
@@ -85,80 +85,52 @@ class PredictionContainer(util.DockerImage):
         return float(result)
 
 
-def get_cli_args() -> tuple[
-    str,
-    str,
-    str,
-    Optional[str],
-    Optional[str],
-    Optional[list[str]],
-    Optional[list[str]],
-]:
+def get_cli_args() -> tuple[str, List[str], str, List[str]]:
     parser = argpass.ArgumentParser(
         description="""
         TB-ML: A framework for comparing AMR prediction in M. tuberculosis.
         """,
     )
     parser.add_argument(
-        "-b",
-        "--bam",
+        "--preprocessing-container",
         type=str,
         required=True,
-        help="Aligned reads for a single sample [required]",
-        metavar="FILE",
-    )
-    parser.add_argument(
-        "-v",
-        "--variant-calling-container",
-        type=str,
-        default=DEFAULT_VC_CONTAINER,
-        help='Name of the Docker image for variant-calling (default: "%(default)s")',
+        help='Name of the Docker image for pre-processing [required]',
         metavar="STR",
+        dest="preproc_container",
     )
     parser.add_argument(
-        "-p",
+        "--preprocessing-args",
+        type=str,
+        required=True,
+        help="String with extra argument(s) to pass on to the pre-processing container",
+        metavar="STR",
+        dest="preproc_args",
+    )
+    parser.add_argument(
         "--prediction-container",
         type=str,
-        default=DEFAULT_PRED_CONTAINER,
-        help='Name of the Docker image for prediction (default: "%(default)s")',
+        required=True,
+        help='Name of the Docker image for prediction [required]',
         metavar="STR",
-    )
-    parser.add_argument(
-        "-o",
-        "--output",
-        type=str,
-        help="Write output to this file instead of STDOUT",
-        metavar="STR",
-    )
-    parser.add_argument(
-        "--variants-filename",
-        type=str,
-        help="Write the called variants to this file before prediction",
-        metavar="STR",
-    )
-    parser.add_argument(
-        "--variant-calling-args",
-        type=str,
-        nargs=argpass.NargsOption.COLLECT_UNTIL_NEXT_KNOWN,
-        help="Extra argument(s) to pass on to the VC container",
-        metavar="STR",
+        dest="pred_container",
     )
     parser.add_argument(
         "--prediction-args",
         type=str,
-        nargs=argpass.NargsOption.COLLECT_UNTIL_NEXT_KNOWN,
-        help="Extra argument(s) to pass on to the prediction container",
+        required=True,
+        help="String with extra argument(s) to pass on to the prediction container",
         metavar="STR",
+        dest="pred_args",
     )
     args = parser.parse_args()
+    preproc_args = [] if args.preproc_args is None else args.preproc_args.split()
+    pred_args = [] if args.pred_args is None else args.pred_args.split()
     return (
-        args.bam,
-        args.variant_calling_container,
-        args.prediction_container,
-        args.output,
-        args.variants_filename,
-        args.variant_calling_args,
-        args.prediction_args,
+        args.preproc_container,
+        preproc_args,
+        args.pred_container,
+        pred_args,
     )
 
 
@@ -167,8 +139,8 @@ def get_prediction(
     vc_img_name: str,
     pred_img_name: str,
     write_vars_fname: Optional[str] = None,
-    vc_extra_args: Optional[list[str]] = None,
-    pred_extra_args: Optional[list[str]] = None,
+    vc_extra_args: Optional[List[str]] = None,
+    pred_extra_args: Optional[List[str]] = None,
 ) -> pd.Series:
     """
     Main function; uses two Docker containers (one containing a variant-calling pipeline
