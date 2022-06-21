@@ -1,6 +1,11 @@
 import pandas as pd
 from typing import List, Dict, Tuple, Optional
-import argpass
+import argparse
+import tempfile
+import pathlib
+import os
+import sys
+import time
 import io
 
 from . import util
@@ -9,86 +14,17 @@ from . import util
 DEFAULT_VC_CONTAINER = "julibeg/tb-ml-freebayes-vc-from-cram:v0.1.0"
 DEFAULT_PRED_CONTAINER = "julibeg/tb-ml-simple-rf-predictor-streptomycin:v0.1.0"
 
-
-class VariantCallingContainer(util.DockerImage):
-    def run_vc_pipeline(
-        self,
-        bam_file: str,
-        target_vars_AF: pd.Series,
-        extra_args: Optional[List[str]] = None,
-    ) -> Tuple[pd.Series, pd.Series]:
-        # docker needs absolute paths for mounts
-        bam_path = util.get_absolute_path(bam_file)
-        # we need to write the target vars to a temporary file
-        with util.temp_file() as tmp_path:
-            target_vars_AF.to_csv(tmp_path)
-            # define mount points in container
-            container_bam_path = "/data/aligned_reads"
-            container_target_vars_path = "/data/target_vars_AF"
-            # define the arguments to be passed to the entrypoint in the container
-            extra_args = [] if extra_args is None else extra_args
-            extra_args += ["-b", container_bam_path, "-t", container_target_vars_path]
-            result = self.run(
-                docker_args=[
-                    "--mount",
-                    f"type=bind,source={bam_path},target={container_bam_path}",
-                    "--mount",
-                    f"type=bind,source={tmp_path},target={container_target_vars_path}",
-                ],
-                extra_args=extra_args,
-                input=target_vars_AF.to_csv(),
-            )
-        # the first few lines of the result will start with '#' and hold some basic
-        # stats about the variant calling process
-        stats_lines = []
-        for line in result.split("\n"):
-            if line.startswith("#"):
-                stats_lines.append(line[1:])
-            else:
-                break
-        stats: pd.Series = pd.read_csv(
-            io.StringIO("\n".join(stats_lines)), index_col=0
-        ).squeeze()
-        variants: pd.Series = pd.read_csv(
-            io.StringIO(result),
-            index_col=["POS", "REF", "ALT"],
-            comment="#",
-        ).squeeze()
-        return stats, variants
+output_comment_lines: List[str] = []
 
 
-class PredictionContainer(util.DockerImage):
-    def get_target_variants_and_AFs(self) -> pd.Series:
-        target_vars: pd.Series = (
-            pd.read_csv(io.StringIO(self.run(extra_args=["get_target_vars"])))
-            .set_index(["POS", "REF", "ALT"])
-            .squeeze()
-        )
-        return target_vars
-
-    def predict(
-        self, variants: pd.Series, extra_args: Optional[List[str]] = None
-    ) -> float:
-        extra_args = [] if extra_args is None else extra_args
-        with util.temp_file() as tmp_path:
-            # define the arguments to be passed to the entrypoint in the container
-            variants.to_csv(tmp_path)
-            container_vars_path = "/data/variants.csv"
-            extra_args += ["predict", container_vars_path]
-            result = self.run(
-                extra_args=extra_args,
-                docker_args=[
-                    "--mount",
-                    f"type=bind,source={tmp_path},target={container_vars_path}",
-                ],
-            ).strip()
-        return float(result)
-
-
-def get_cli_args() -> Dict[str, str]:
-    parser = argpass.ArgumentParser(
+def get_cli_args() -> List[Tuple[str, List[str]]]:
+    # We will use argparse only to provide the help string, but parse the command line
+    # arguments ourselves.
+    parser = argparse.ArgumentParser(
         description="""
-        TB-ML: A framework for comparing AMR prediction in M. tuberculosis.
+        TB-ML: A framework for comparing AMR prediction in M. tuberculosis. Provide
+        Docker image names and arguments like so: --container CONTR_NAME_1 ARG_1 ARG_2
+        --container CONTR_NAME_2 ARG_3 --container CONTR_NAME_3 ARG_4 ARG_5 ...
         """,
     )
     parser.add_argument(
@@ -100,49 +36,69 @@ def get_cli_args() -> Dict[str, str]:
         help="Name of Docker image and corresponding extra arguments [required]",
         metavar="STR",
     )
-    container_dict = {
-        cont_args[0]: cont_args[1:] for cont_args in parser.parse_args().container
-    }
-    return container_dict
+    args, other_args = parser.parse_args()
+    # now parse the command line args --> split into lists (with the container name at
+    # the beginning followed by the container args) at every "--container" argument
+    cont_args_lists: List[List[str]] = []
+    args_list: List[str] = []
+    for arg in sys.argv[1:]:
+        if arg == "--container":
+            if args_list:
+                cont_args_lists.append(args_list)
+                args_list = []
+            continue
+        args_list.append(arg)
+    cont_args_lists.append(args_list)
+    containers_and_args = [(lst[0], lst[1:]) for lst in cont_args_lists]
+    return containers_and_args
 
 
-def get_prediction(
-    bam_file: str,
-    vc_img_name: str,
-    pred_img_name: str,
-    write_vars_fname: Optional[str] = None,
-    vc_extra_args: Optional[List[str]] = None,
-    pred_extra_args: Optional[List[str]] = None,
-) -> pd.Series:
+def get_prediction(containers_and_args: List[Tuple[str, List[str]]]) -> pd.Series:
     """
-    Main function; uses two Docker containers (one containing a variant-calling pipeline
-    and one with a AMR prediction model) to predict AMR resistance from the aligned
-    reads of a sample
-    (other input types will be added in the future).
+    TODO: add docstring
     """
-    # pull / update the images and initialise the Docker objects
-    vc_container: VariantCallingContainer = VariantCallingContainer(vc_img_name)
-    pred_container: PredictionContainer = PredictionContainer(pred_img_name)
-    # get the allele frequencies of the training dataset from the prediction container
-    target_vars_AF: pd.Series = pred_container.get_target_variants_and_AFs()
-    # run the variant calling container and provide the target variants so that it can
-    # make sure that they are covered in the output
-    vc_stats: pd.Series
-    variants: pd.Series
-    vc_stats, variants = vc_container.run_vc_pipeline(
-        bam_file, target_vars_AF, extra_args=vc_extra_args
-    )
-    if write_vars_fname is not None:
-        variants.to_csv(write_vars_fname)
+    # run all container commands in a temporary directory
+    with tempfile.TemporaryDirectory() as tmp_dir:
+        print(tmp_dir)
+        for img_name, container_args in containers_and_args:
+            container = util.DockerImage(img_name)
+            docker_args = ["-v", f"{tmp_dir}:/data"]
+            for i, arg in enumerate(container_args):
+                # Check if an argument is a path. If it is, it can either be an input
+                # file / directory outside the temporary directory or an intermediate
+                # file / directory which has been generated inside the temporary
+                # directory. In the first case, we will make it available to the
+                # container via a bind mount. In the second case, we don't need to do
+                # anything since the temporary directory will be mounted as a volume.
+                if os.path.exists(arg):
+                    # The path exists, now check if it is inside the temporary
+                    # directory. To achieve this, prepend the basename with the path to
+                    # the temp dir and check if it exists.
+                    abs_path_tmpdir = pathlib.Path(tmp_dir, pathlib.Path(arg).name)
+                    if not abs_path_tmpdir.exists():
+                        # define the bind mount
+                        docker_args += [
+                            "--mount",
+                            (
+                                f"type=bind,source={util.get_absolute_path(arg)},"
+                                f"target=/data/{arg}"
+                            ),
+                        ]
+                        # replace the original path with the path to the bind mount
+                        container_args[i] = f"/data/{arg}"
+            print(img_name, container_args)
+            container.run(docker_args=docker_args, extra_args=container_args)
+        time.sleep(10000)
+
     # generate Series for final report
-    res = pd.Series(dtype=object)
-    res.index.name = "parameter"
-    res.name = "value"
-    res["file"] = util.get_absolute_path(bam_file)
-    res["vc_container"] = vc_img_name
-    res["pred_container"] = pred_img_name
-    res = pd.concat((res, vc_stats))
-    # predict
-    res["resistance_probability"] = pred_container.predict(variants, pred_extra_args)
-    res["resistance_status"] = "S" if res["resistance_probability"] < 0.5 else "R"
-    return res
+    # res = pd.Series(dtype=object)
+    # res.index.name = "parameter"
+    # res.name = "value"
+    # res["file"] = util.get_absolute_path(bam_file)
+    # res["vc_container"] = vc_img_name
+    # res["pred_container"] = pred_img_name
+    # res = pd.concat((res, vc_stats))
+    # # predict
+    # res["resistance_probability"] = pred_container.predict(variants, pred_extra_args)
+    # res["resistance_status"] = "S" if res["resistance_probability"] < 0.5 else "R"
+    # return res

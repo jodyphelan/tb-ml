@@ -7,13 +7,13 @@ vc_container="vc-test"
 
 tb-ml \
     --container $pred_container \
-        --get-target-vars \
-        -o target_vars.csv \
+        "--get-target-vars \
+        -o target_vars.csv" \
     --container $vc_container \
-        -b tb_ml/tests/test_data/test.cram \
+        "-b tb_ml/tests/test_data/test.cram \
         -t target_vars.csv \
-        -o genotypes.csv \
+        -o genotypes.csv" \
     --container $pred_container \
-        genotypes.csv \
-        -o prediction_result.csv
+        "genotypes.csv \
+        -o prediction_result.csv"
 
