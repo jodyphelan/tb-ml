@@ -32,25 +32,13 @@ def get_cli_args() -> List[Tuple[str, List[str]]]:
         type=str,
         required=True,
         action="append",
-        nargs="+",
+        nargs=2,
         help="Name of Docker image and corresponding extra arguments [required]",
         metavar="STR",
     )
-    args, other_args = parser.parse_args()
-    # now parse the command line args --> split into lists (with the container name at
-    # the beginning followed by the container args) at every "--container" argument
-    cont_args_lists: List[List[str]] = []
-    args_list: List[str] = []
-    for arg in sys.argv[1:]:
-        if arg == "--container":
-            if args_list:
-                cont_args_lists.append(args_list)
-                args_list = []
-            continue
-        args_list.append(arg)
-    cont_args_lists.append(args_list)
-    containers_and_args = [(lst[0], lst[1:]) for lst in cont_args_lists]
-    return containers_and_args
+    args = parser.parse_args()
+    container_args_list = [(lst[0], lst[1].split()) for lst in args.container]
+    return container_args_list
 
 
 def get_prediction(containers_and_args: List[Tuple[str, List[str]]]) -> pd.Series:
@@ -59,6 +47,15 @@ def get_prediction(containers_and_args: List[Tuple[str, List[str]]]) -> pd.Serie
     """
     # run all container commands in a temporary directory
     with tempfile.TemporaryDirectory() as tmp_dir:
+        # before running the containers, make sure that the final command includes the
+        # path to an output file
+        if not (
+            "-o" in containers_and_args[-1][1]
+            or "--output" in containers_and_args[-1][1]
+        ):
+            raise ValueError(
+                "The arguments for the last container must include an output file"
+            )
         print(tmp_dir)
         for img_name, container_args in containers_and_args:
             container = util.DockerImage(img_name)
@@ -88,17 +85,22 @@ def get_prediction(containers_and_args: List[Tuple[str, List[str]]]) -> pd.Serie
                         container_args[i] = f"/data/{arg}"
             print(img_name, container_args)
             container.run(docker_args=docker_args, extra_args=container_args)
-        time.sleep(10000)
+        # read the result file --> get the output path of the last container
+        for i, arg in enumerate(container_args):
+            if arg in ("-o", "--output"):
+                output_path = container_args[i + 1]
+                break
+        prediction = pd.read_csv(output_path)
 
     # generate Series for final report
-    # res = pd.Series(dtype=object)
-    # res.index.name = "parameter"
-    # res.name = "value"
-    # res["file"] = util.get_absolute_path(bam_file)
-    # res["vc_container"] = vc_img_name
-    # res["pred_container"] = pred_img_name
-    # res = pd.concat((res, vc_stats))
-    # # predict
-    # res["resistance_probability"] = pred_container.predict(variants, pred_extra_args)
-    # res["resistance_status"] = "S" if res["resistance_probability"] < 0.5 else "R"
-    # return res
+    res = pd.Series(dtype=object)
+    res.index.name = "parameter"
+    res.name = "value"
+    res["file"] = util.get_absolute_path(bam_file)
+    res["vc_container"] = vc_img_name
+    res["pred_container"] = pred_img_name
+    res = pd.concat((res, vc_stats))
+    # predict
+    res["resistance_probability"] = pred_container.predict(variants, pred_extra_args)
+    res["resistance_status"] = "S" if res["resistance_probability"] < 0.5 else "R"
+    return res
