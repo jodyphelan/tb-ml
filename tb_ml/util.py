@@ -11,11 +11,17 @@ def get_absolute_path(path: str) -> str:
 
 
 class DockerError(Exception):
+    """
+    Raised when running a Docker command with `DockerImage.exec_cmd` fails.
+    """
     def __init__(self, msg: str) -> None:
         super().__init__(msg)
 
 
 class DockerImage:
+    """
+    Simple API for Docker containers.
+    """
     def __init__(self, img_name: str) -> None:
         # check if the image name has a tag. Add 'latest' if not
         self.img_name: str = (f"{img_name}:latest") if ":" not in img_name else img_name
@@ -27,6 +33,9 @@ class DockerImage:
         input: Optional[str] = None,
         error_msg: Optional[str] = None,
     ) -> str:
+        """
+        Run a Docker command with this container.
+        """
         # replace the default `None` with an empty list
         extra_args = [] if extra_args is None else extra_args
         # the container is supposed to read from STDIN --> make sure `-i` is in the
@@ -56,7 +65,7 @@ class DockerImage:
         error_msg: Optional[str] = None,
     ) -> str:
         """
-        Thin wrapper around `.exec_cmd()`; executes a `docker run ...` command.
+        Thin wrapper around `.exec_cmd()`; executes a `docker run ...` statement.
         """
         # make sure the docker command starts with `run`
         docker_args = (
