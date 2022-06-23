@@ -1,6 +1,5 @@
 #!/bin/bash
 
-cont2="nn-test"
 cont1="julibeg/tb-ml-one-hot-encoded-from-cram:v0.2.0"
 cont2="julibeg/tb-ml-neural-net-predictor-13-drugs:v0.3.0"
 
