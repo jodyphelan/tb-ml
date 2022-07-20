@@ -1,6 +1,9 @@
 # VSCode
 .vscode
 
+# any shell scripts that might have been used for testing etc.
+*test*.sh
+
 # files used to generate the test data and models
 fit_simple_test_model
 

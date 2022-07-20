@@ -3,17 +3,25 @@ from typing import Optional
 import os
 
 
+def resolve_path(path: str) -> str:
+    """
+    Resolves a path being aware of `$HOME` and `~/`
+    """
+    return os.path.expanduser(os.path.expandvars(path))
+
+
 def get_absolute_path(path: str) -> str:
     """
     Gets the absolute path and is aware of `$HOME` and `~/`
     """
-    return os.path.abspath(os.path.expanduser(os.path.expandvars(path)))
+    return os.path.abspath(resolve_path(path))
 
 
 class DockerError(Exception):
     """
     Raised when running a Docker command with `DockerImage.exec_cmd` fails.
     """
+
     def __init__(self, msg: str) -> None:
         super().__init__(msg)
 
@@ -22,6 +30,7 @@ class DockerImage:
     """
     Simple API for Docker containers.
     """
+
     def __init__(self, img_name: str) -> None:
         # check if the image name has a tag. Add 'latest' if not
         self.img_name: str = (f"{img_name}:latest") if ":" not in img_name else img_name
