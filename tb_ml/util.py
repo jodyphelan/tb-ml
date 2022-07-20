@@ -1,5 +1,5 @@
 import subprocess
-from typing import Optional
+from typing import Optional, List
 import os
 
 
@@ -37,8 +37,8 @@ class DockerImage:
 
     def exec_cmd(
         self,
-        docker_args: list[str],
-        extra_args: Optional[list[str]] = None,
+        docker_args: List[str],
+        extra_args: Optional[List[str]] = None,
         input: Optional[str] = None,
         error_msg: Optional[str] = None,
     ) -> str:
@@ -68,8 +68,8 @@ class DockerImage:
 
     def run(
         self,
-        docker_args: Optional[list[str]] = None,
-        extra_args: Optional[list[str]] = None,
+        docker_args: Optional[List[str]] = None,
+        extra_args: Optional[List[str]] = None,
         input: Optional[str] = None,
         error_msg: Optional[str] = None,
     ) -> str:
