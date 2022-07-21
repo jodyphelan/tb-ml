@@ -2,44 +2,55 @@
 
 # tb-ml
 
-A plethora of machine learning models for resistance prediction from WGS data are being published every year, but in many cases neither the source code nor the final model are provided, making systematic comparisons difficult. This package introduces a standardised antimicrobial resistance prediction pipeline using Docker containers with either machine learning models or methods for direct association. The pipeline essentially runs two Docker containers specified by the user: one for variant calling (VC) and one to perform resistance prediction (example containers can be found on [Docker Hub](https://hub.docker.com/u/julibeg) and [GitHub](https://github.com/julibeg/tb-ml-containers)). We define a flexible standard for the call signatures of both containers (for details see below). As long as they adhere to the standard, users can create and swap out containers for both steps, effectively facilitating easy comparisons between different methods for resistance prediction.
+Large numbers of machine learning models for resistance prediction from WGS data are being published every year, but in many cases neither the source code nor the final model are provided, making systematic comparisons difficult. This package introduces a standardised antimicrobial resistance prediction pipeline using Docker containers with either machine learning models or methods for direct association. The pipeline essentially runs multiple Docker containers specified by the user in succession. Usually, this would include one container for pre-processing of the genomic data (e.g. variant calling) and one to perform resistance prediction (example containers can be found on [Docker Hub](https://hub.docker.com/u/julibeg) and [GitHub](https://github.com/julibeg/tb-ml-containers)). We define a flexible standard for the call signatures of the containers (for details see below). As long as they adhere to the standard, users can create and swap out containers for steps of the pipeline, effectively facilitating easy comparisons between different methods for resistance prediction.
 
 ## Install
 
+`tb-ml` requires [Docker](https://www.docker.com/) to be installed and [set up to be run without sudo](https://docs.docker.com/engine/install/linux-postinstall/). If you have Docker, install `tb-ml` with
+
 ```bash
 git clone https://github.com/jodyphelan/tb-ml.git
-pip install -r requirements.txt 
 pip install .
 ```
 
-## Example usage
+## Usage
+
+`tb-ml` can take an arbitrary number of Docker containers and accompanying arguments. It contains a basic Docker API and runs the containers in succession. The CLI only has a single flag (`--container`). Use it to specify the name of a docker image and add a string holding the arguments to be passed to the container after that.
+
+The following example uses a [neural network container](https://github.com/julibeg/tb-ml-containers/tree/main/neural_net_predictor_13_drugs)for prediction, which accepts one-hot-encoded sequences for a number of genomic loci as input. These one-hot-encoded sequences are prepared by a [pre-processing container](https://github.com/julibeg/tb-ml-containers/tree/main/one_hot_encode).In the example, we use a container that extracts the consensus sequence for an Mtb sample from the corresponding SAM/BAM/CRAM file holding reads aligned against the reference genome H37Rv (ASM19595v2). The pre-processing container expects a list of target loci and the prediction container implements a method to get a list of these loci. Therefore, the pipeline run by `tb-ml` will comprise three steps:
+
+* Get the target loci from the **prediction container**.
+* Give the target loci and input alignment file to the **pre-processing container** to
+  produce the one-hot-encoded sequences.
+* Feed the one-hot-encoded sequences to the **prediction container** to predict the
+  resistance status of the sample.
+
+To execute these steps with `tb-ml`, run
 
 ```bash
-tb-ml -b tb_ml/tests/test_data/test.cram \
-    -v julibeg/tb-ml-freebayes-vc-from-cram:v0.1.0 \
-    -p julibeg/tb-ml-simple-rf-predictor-streptomycin:v0.1.0
-```
+proc_cont="julibeg/tb-ml-one-hot-encoded-from-cram:v0.3.0"
+pred_cont="julibeg/tb-ml-neural-net-predictor-13-drugs:v0.4.0"
 
-This command specifies the input CRAM file and the names of the containers to use for the variant calling (`-v`) and prediction (`-p`) steps. It runs the prediction and prints a short report to `STDOUT`:
-
-```
-parameter,value
-file,/abs/path/to/tb-ml/tb_ml/tests/test_data/test.cram
-vc_container,julibeg/tb-ml-freebayes-vc-from-cram:v0.1.0
-pred_container,julibeg/tb-ml-simple-rf-predictor-streptomycin:v0.1.0
-shared_variants,7248
-dropped_variants,0
-missing_variants,28
-noncalls,96
-variants_set_to_AF,124
-resistance_probability,0.33
-resistance_status,S
+tb-ml \
+    --container $pred_cont \
+        "--get-target-loci \
+        -o target-loci.csv" \
+    --container $proc_cont \
+        "-b tb_ml/tests/test_data/test_aligned_reads.cram \
+        -r target-loci.csv \
+        -o one-hot-seqs.csv" \
+    --container $pred_cont \
+        "one-hot-seqs.csv"
 ```
 
 ## New containers
 
-Containers created by researchers developing new prediction models should adhere to the standards outlined below in order to be used in `tb-ml`. All the pre-processing should take place in the VC container and the prediction container should only take a vector of features and produce a single number: the probability of resistance. One peculiarity of the prediction pipeline is that the VC container needs to provide variant calls for all target variants used by the prediction container. Therefore, the prediction container must implement a method for giving out a list of the variants which can be used by the VC container to make sure that all relevant variants are present in its output. The call signatures are as follows:
+`tb-ml` was designed with maximum flexibility in line. New containers only need to adhere to the following rules:
 
-* The **prediction container** should be called with one of two arguments: `get_target_vars` or `predict`. In the first case (i.e. called as `docker run image-name get_target_vars`), the container should print a CSV with the target variants it expects for prediction in the format `POS,REF,ALT,AF` (`AF` being the allele frequency of the training dataset) to `STDOUT`. In the second case, (i.e. called as `docker run image-name predict input.csv`), it should read the input file (in the format `POS,REF,ALT,GT`) and print the prediction result (a single floating point number between `0` and `1`) to `STDOUT`.
+* Any output that should be added to the final report should be printed to `STDOUT`.
 
-* The **VC container** should be called like this: `docker run image-name -b path-to-BAM-file -t path-to-CSV-with-target-variants`. It should accept an alignment file (SAM/BAM/CRAM) and a CSV in the format `POS,REF,ALT,AF` as inputs. The purpose of the CSV is to make sure that the positions required by the prediction container are covered in the called variants. Non-calls and variants missing from the VC output should be set to the corresponding allele frequencies (available from the input file with the target variants). The output should be written to `STDOUT` and be in the format `POS,REF,ALT,GT`. It can start with comments with some basic info / stats about the variant calling process. The comment lines should start with `#` and hold comma-separated key-value pairs. They will be added to the prediction report.
+* Output that will be used by other containers needs to be written to files.
+
+* Prediction containers should **only predict** and do no pre-processing. In most cases, they should accept input in CSV format (e.g. one-hot-encoded sequences, called variants, etc.)
+
+* Prediction containers can have extra methods to give information that might be relevant for pre-processing (e.g. target loci, variants, etc.). Since this information is used by other containers, it should be written (ideally as CSV) to a file.
