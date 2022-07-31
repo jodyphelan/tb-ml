@@ -7,6 +7,7 @@ test_reads = f"{test_data}/test_aligned_reads.cram"
 
 
 def run_test(capfd, cont_arg_list, res_file):
+    # run the containers and capture the output
     tb_ml.run_containers(cont_arg_list)
     out, err = capfd.readouterr()
     # make sure there was no error msg
@@ -25,7 +26,7 @@ def run_test(capfd, cont_arg_list, res_file):
 
 def test_one_hot_into_neural_net(capfd):
     one_hot_container = "julibeg/tb-ml-one-hot-encoded-from-cram:v0.3.0"
-    neural_net_container = "julibeg/tb-ml-neural-net-predictor-13-drugs:v0.4.0"
+    neural_net_container = "julibeg/tb-ml-neural-net-predictor-13-drugs:v0.5.0"
     cont_arg_list = [
         [
             neural_net_container,
@@ -45,7 +46,7 @@ def test_one_hot_into_neural_net(capfd):
 
 def test_streptomycin_called_variants_into_random_forest(capfd):
     random_forest_container = "julibeg/tb-ml-simple-rf-predictor-streptomycin:v0.3.0"
-    variant_calling_container = "julibeg/tb-ml-freebayes-vc-from-cram:v0.2.0"
+    variant_calling_container = "julibeg/tb-ml-freebayes-vc-from-cram:v0.3.0"
     cont_arg_list = [
         [
             random_forest_container,
