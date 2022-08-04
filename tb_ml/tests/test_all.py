@@ -25,8 +25,8 @@ def run_test(capfd, cont_arg_list, res_file):
 
 
 def test_one_hot_into_neural_net(capfd):
-    one_hot_container = "julibeg/tb-ml-one-hot-encoded-from-cram:v0.3.0"
-    neural_net_container = "julibeg/tb-ml-neural-net-predictor-13-drugs:v0.5.0"
+    one_hot_container = "julibeg/tb-ml-one-hot-encoded-from-cram:v0.4.0"
+    neural_net_container = "julibeg/tb-ml-neural-net-predictor-13-drugs:v0.7.0"
     cont_arg_list = [
         [
             neural_net_container,
