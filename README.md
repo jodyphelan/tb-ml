@@ -45,7 +45,7 @@ tb-ml \
 
 ## New containers
 
-`tb-ml` was designed with maximum flexibility in line. New containers only need to adhere to the following rules:
+`tb-ml` was designed with maximum flexibility in mind. New containers only need to adhere to the following rules:
 
 * Any output that should be added to the final report should be printed to `STDOUT`.
 
