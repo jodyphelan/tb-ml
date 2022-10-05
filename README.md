@@ -25,22 +25,23 @@ The following example uses a [neural network container](https://github.com/julib
 * Feed the one-hot-encoded sequences to the **prediction container** to predict the
   resistance status of the sample.
 
-To execute these steps with `tb-ml`, run
+To execute these steps with `tb-ml`, run the following from the root directory of the git repository
 
 ```bash
-proc_cont="julibeg/tb-ml-one-hot-encoded-from-cram:v0.3.0"
-pred_cont="julibeg/tb-ml-neural-net-predictor-13-drugs:v0.4.0"
+proc_cont="julibeg/tb-ml-one-hot-encoded-seqs-from-raw-reads:v0.2.0"
+pred_cont="julibeg/tb-ml-neural-net-from-one-hot-encoded-seqs-13-drugs:v0.7.0"
 
 tb-ml \
     --container $pred_cont \
-        "--get-target-loci \
+    "--get-target-loci \
         -o target-loci.csv" \
     --container $proc_cont \
-        "-b tb_ml/tests/test_data/test_aligned_reads.cram \
-        -r target-loci.csv \
-        -o one-hot-seqs.csv" \
+    "-r target-loci.csv \
+        -o one-hot-seqs.csv \
+        tb_ml/tests/test_data/test_raw_reads_1.fastq.gz \
+        tb_ml/tests/test_data/test_raw_reads_2.fastq.gz" \
     --container $pred_cont \
-        "one-hot-seqs.csv"
+    "one-hot-seqs.csv"
 ```
 
 ## New containers
