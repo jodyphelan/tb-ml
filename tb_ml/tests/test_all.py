@@ -3,7 +3,9 @@ import pathlib
 
 
 test_data = f"{pathlib.Path(__file__).resolve().parent}/test_data"
-test_reads = f"{test_data}/test_aligned_reads.cram"
+test_CRAM = f"{test_data}/test_aligned_reads.cram"
+test_FASTQ_1 = f"{test_data}/test_raw_reads_1.fastq.gz"
+test_FASTQ_2 = f"{test_data}/test_raw_reads_2.fastq.gz"
 
 
 def run_test(capfd, cont_arg_list, res_file):
@@ -24,7 +26,7 @@ def run_test(capfd, cont_arg_list, res_file):
             assert line.strip() == res.strip()
 
 
-def test_one_hot_into_neural_net(capfd):
+def test_one_hot_from_cram_into_neural_net(capfd):
     one_hot_container = "julibeg/tb-ml-one-hot-encoded-seqs-from-aligned-reads:v0.4.0"
     neural_net_container = (
         "julibeg/tb-ml-neural-net-from-one-hot-encoded-seqs-13-drugs:v0.7.0"
@@ -36,14 +38,44 @@ def test_one_hot_into_neural_net(capfd):
         ],
         [
             one_hot_container,
-            f"-b {test_reads} -r target-loci.csv -o one-hot-seqs.csv".split(),
+            f"-b {test_CRAM} -r target-loci.csv -o one-hot-seqs.csv".split(),
         ],
         [
             neural_net_container,
             ["one-hot-seqs.csv"],
         ],
     ]
-    run_test(capfd, cont_arg_list, f"{test_data}/test_result_neural_net.csv")
+    run_test(
+        capfd, cont_arg_list, f"{test_data}/test_result_neural_net_aligned_reads.csv"
+    )
+
+
+def test_one_hot_from_fastq_into_neural_net(capfd):
+    one_hot_container = "julibeg/tb-ml-one-hot-encoded-seqs-from-raw-reads:v0.2.0"
+    neural_net_container = (
+        "julibeg/tb-ml-neural-net-from-one-hot-encoded-seqs-13-drugs:v0.7.0"
+    )
+    cont_arg_list = [
+        [
+            neural_net_container,
+            "--get-target-loci -o target-loci.csv".split(),
+        ],
+        [
+            one_hot_container,
+            [
+                test_FASTQ_1,
+                test_FASTQ_2,
+                *("-r target-loci.csv -o one-hot-seqs.csv".split()),
+            ],
+        ],
+        [
+            neural_net_container,
+            ["one-hot-seqs.csv"],
+        ],
+    ]
+    run_test(
+        capfd, cont_arg_list, f"{test_data}/test_result_neural_net_raw_reads.csv"
+    )
 
 
 def test_streptomycin_called_variants_into_random_forest(capfd):
@@ -58,7 +90,7 @@ def test_streptomycin_called_variants_into_random_forest(capfd):
         ],
         [
             variant_calling_container,
-            f"-b {test_reads} -t target_vars.csv -o genotypes.csv".split(),
+            f"-b {test_CRAM} -t target_vars.csv -o genotypes.csv".split(),
         ],
         [
             random_forest_container,
