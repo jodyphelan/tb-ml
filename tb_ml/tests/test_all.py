@@ -3,7 +3,7 @@ import pathlib
 
 
 test_data = f"{pathlib.Path(__file__).resolve().parent}/test_data"
-test_CRAM = f"{test_data}/test_aligned_reads.cram"
+test_BAM = f"{test_data}/test_aligned_reads.bam"
 test_FASTQ_1 = f"{test_data}/test_raw_reads_1.fastq.gz"
 test_FASTQ_2 = f"{test_data}/test_raw_reads_2.fastq.gz"
 
@@ -26,8 +26,8 @@ def run_test(capfd, cont_arg_list, res_file):
             assert line.strip() == res.strip()
 
 
-def test_one_hot_from_cram_into_neural_net(capfd):
-    one_hot_container = "julibeg/tb-ml-one-hot-encoded-seqs-from-aligned-reads:v0.4.0"
+def test_one_hot_from_BAM_into_neural_net(capfd):
+    one_hot_container = "julibeg/tb-ml-one-hot-encoded-seqs-from-aligned-reads:v0.5.0"
     neural_net_container = (
         "julibeg/tb-ml-neural-net-from-one-hot-encoded-seqs-13-drugs:v0.7.0"
     )
@@ -38,7 +38,7 @@ def test_one_hot_from_cram_into_neural_net(capfd):
         ],
         [
             one_hot_container,
-            f"-b {test_CRAM} -r target-loci.csv -o one-hot-seqs.csv".split(),
+            f"-b {test_BAM} -r target-loci.csv -o one-hot-seqs.csv".split(),
         ],
         [
             neural_net_container,
@@ -90,7 +90,7 @@ def test_streptomycin_called_variants_into_random_forest(capfd):
         ],
         [
             variant_calling_container,
-            f"-b {test_CRAM} -t target_vars.csv -o genotypes.csv".split(),
+            f"-b {test_BAM} -t target_vars.csv -o genotypes.csv".split(),
         ],
         [
             random_forest_container,
