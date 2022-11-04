@@ -13,8 +13,8 @@ def get_cli_args() -> List[Tuple[str, List[str]]]:
     parser = argparse.ArgumentParser(
         description="""
         TB-ML: A framework for comparing AMR prediction in M. tuberculosis. Provide
-        Docker image names and arguments like so: --container CONTR_NAME_1 ARG_1 ARG_2
-        --container CONTR_NAME_2 ARG_3 --container CONTR_NAME_3 ARG_4 ARG_5 ...
+        Docker image names and arguments like so: --container CONTR_NAME_1 "ARG_1 ARG_2"
+        --container CONTR_NAME_2 "ARG_3" --container CONTR_NAME_3 "ARG_4 ARG_5" ...
         """,
     )
     parser.add_argument(
